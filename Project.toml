@@ -2,3 +2,5 @@ name = "EntryVehicle"
 uuid = "2bf4a772-913f-11e9-10d3-5344eec0cfb1"
 authors = ["Zac <zacmanchester@stanford.edu>"]
 version = "0.1.0"
+[deps]
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
