@@ -4,27 +4,28 @@ using LinearAlgebra
 
 function vehicle_dynamics!(ẋ, x, u)
 
-    #Spherical Earth
+    #Flat Earth
     Re = 6371.0 #Earth radius (km)
+    g = 9.81 #(m/s^2)
 
-    #Cone with symmetry about x-axis
+    #Cone with symmetry about z-axis
     #Need to add mass offset - velocity is 16° from cone centerline
     m_cone = 600.0 #Cone mass (kg)
     r_cone = 1.3 #Cone radius (m)
     θ_cone = 70*pi/180 #Cone half-angle
     h_cone = r_cone/tan(θ_cone) #Cone height (m)
     l_cone = 0.2 #Distance to cone COM from point (m)
-    Cp = 0.1 #pitch damping coefficient
+    Cp = 1.0 #pitch damping coefficient
 
     #Inertia in kg*m^2
-    Jxx = (3.0/10.0)*m_cone*r_cone^2;
-    Jyy = (3.0/20.0)*m_cone*(r_cone^2 + 4*h_cone^2)
+    Jzz = (3.0/10.0)*m_cone*r_cone^2;
+    Jxx = (3.0/20.0)*m_cone*(r_cone^2 + 4*h_cone^2)
     J = [Jxx 0 0;
-         0 Jyy 0;
-         0 0 Jyy]
+         0 Jxx 0;
+         0 0 Jzz]
     Jinv = [1/Jxx 0 0;
-            0 1/Jyy 0;
-            0 0 1/Jyy]
+            0 1/Jxx 0;
+            0 0 1/Jzz]
 
     r = x[1:3] #position vector in ECI frame (km)
     q = x[4:7]/norm(x[4:7]) #body to ECI rotation
@@ -32,8 +33,9 @@ function vehicle_dynamics!(ẋ, x, u)
     ω = x[11:13] #body frame angular velocity vector (km/s)
 
     #Calculate aerodynamic forces + torques in body frame
-    h = norm(r) - Re #height above sea level (km)
-    ρ = exponential_atmosphere(h) #atmospheric density (kg/m^3)
+    #h = norm(r) - Re #height above sea level (km)
+    #ρ = exponential_atmosphere(h) #atmospheric density (kg/m^3)
+    ρ = 1e-5
     vb = qrot(qconj(q),v);
     Fb = [0; 0; 0]
     tau = [0; 0; 0]
@@ -52,9 +54,10 @@ function vehicle_dynamics!(ẋ, x, u)
             end
         end
     end
+    Feci = qrot(q,Fb) - [0; 0; g]
 
     #Add pitch damping
-    τ = τ - Cp*[0; ω[2:3]]
+    τ = τ - Cp*[ω[1:2]; 0]
 
     ẋ[1:3] = v
     ẋ[4:7] = 0.5*qmult(q,[0; ω])
