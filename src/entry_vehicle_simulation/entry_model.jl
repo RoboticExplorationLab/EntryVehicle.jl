@@ -40,15 +40,29 @@ function dyna(t, x, u)
 
     if norm(r) > 1.0
 
+    #Compute aerodnyamic forces
     ω_mars = [0; 0; 7.095*10^(-5)]
     v_rel = (v-cross(ω_mars, r*Re)) #velocity of spacecraft wrt atm
 
-    F_grav_eci = -m*mu*r/((norm(r)^3)*(Re^2))
     F_aero_body, τ_aero_body = compute_aero(δ, r_cone, r_G, r*Re, v_rel, q)
     F_aero_eci = qrot(q, F_aero_body)
 
+    #Compute gravitation + J2 acceleration
+    x = r[1]
+    y = r[2]
+    z = r[3]
+    J2 = 1960.45*(10^(-6))
+    F_grav_eci = -m*mu*r/((norm(r)^3)*(Re^2))
+    #=F_J2_X = (5*((z/norm(r))^2)-1)*x
+    F_J2_Y = (5*((z/norm(r))^2)-1)*y
+    F_J2_Z = (5*((z/norm(r))^2)-3)*z
+    F_J2_eci = ((3*J2*mu*Re^2)/(2*(norm(r)^5)))*[F_J2_X; F_J2_Y; F_J2_Z] =#
+    F_J2_eci=[J2*r[1]/norm(r)^7*(6*r[3]-1.5*(r[1]^2+r[2]^2));
+     J2*r[2]/norm(r)^7*(6*r[3]-1.5*(r[1]^2+r[2]^2));
+     J2*r[3]/norm(r)^7*(3*r[3]-4.5*(r[1]^2+r[2]^2))]
+
     Cp = 0.5 #pitch damping coefficient
-    F_total_eci = F_grav_eci + F_aero_eci
+    F_total_eci = F_grav_eci + F_aero_eci + F_J2_eci
     τ_total_body = τ_aero_body - Cp*[ω[1:2]; 0.0] + [0.0;0.0;u[1]] #computed at COM #[0.0;0.0;0.0]
 
     ẋ[1:3] = v/Re
