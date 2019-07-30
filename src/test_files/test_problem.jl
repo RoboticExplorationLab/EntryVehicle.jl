@@ -30,7 +30,6 @@ function compute_aero(δ, r_cone, r_G, r, v, q)
     F_aero_body = [0.0;0.0;0.0]
     τ_aero_body = [0.0;0.0;0.0]
     v_body = qrot(qconj(q), v) #velocity of the spacecraft in body_frame in km.s-1
-    @show(v_body)
     dr = 0.1
     dv = pi/10.0
     A = 0.0
@@ -65,7 +64,7 @@ end
 #dynamics
 
 function dyna!(ẋ, x, u)
-    ẋ = zeros(13)
+    # ẋ = zeros(13)
 
     #@show(t)
 
@@ -125,7 +124,7 @@ function dyna!(ẋ, x, u)
     ẋ[8:10] = F_total_eci/m
     ẋ[11:13] = Jinv*(τ_total_body-cross(ω, J*ω))
 else
-    ẋ = zeros(13)
+    # ẋ = zeros(13)
 end
 end
 
@@ -162,7 +161,7 @@ xf[11:13] = [0.0; 0.0; 0.0]
 #here with shift, target is before 1 degree
 #xf[1:3] = [0.811231302755334; 0.5848325190529827; -0.0334603593626661]
 #xf[8:10] = [-4.443867255757695;3.4421107961654713; -3.2409461334862266]
-xf[1:3] = [0.9962;0.085; 0.0]/Re
+xf[1:3] = [0.9962;0.085; 0.0]
 xf[8:10] = [0.0; 0.0; 0.0]
 
 #xdot = zeros(n)
