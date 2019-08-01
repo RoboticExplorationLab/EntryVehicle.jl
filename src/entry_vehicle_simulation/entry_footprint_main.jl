@@ -10,6 +10,7 @@ using ODE
 using HCubature
 using StaticArrays
 using WebIO
+using Statistics
 
 #Main file for footprint drawing using MeshCat
 
@@ -32,11 +33,19 @@ function dyn(t, x)
     return dyna(t, x, [0.0]) # torques input should be in km^2*kg*s^(-2) so should be small values
 end
 
-x0 = [(3389.5+125)/Re, 0.0/Re, 0.0, Q[1], Q[2], Q[3], Q[4], 0.0, 4.0, 0.0, 0.0, 0.0, 0.0]
-pos_end, state_end = footprint(x0)
+pos_end, state_end = footprint()
 
 ##########################
 ###### Visualization #####
 ##########################
 
 animate_footprint(pos_end)
+
+#=
+mean(pos_end[:, 1])
+mean(pos_end[:, 2])
+mean(pos_end[:, 3])
+
+mean(state_end[:, 8])
+mean(state_end[:, 9])
+mean(state_end[:, 10]) =#

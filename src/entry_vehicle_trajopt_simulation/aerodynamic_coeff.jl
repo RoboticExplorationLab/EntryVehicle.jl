@@ -1,7 +1,7 @@
 #File contains functions commputing Aerodynamic Coefficients using Panel methods
 
 
-function compute_aero(δ, r_cone, r_G, r, v, q, ρ0)
+function compute_aero(δ, r_cone, r_G, r, v, q)
     #general case: v is the relative velocity of spacecraft wrt atm
     R_e = 3389.5
     h = norm(r)-R_e #altitude for atmosphere computation
@@ -25,7 +25,7 @@ function compute_aero(δ, r_cone, r_G, r, v, q, ρ0)
             if n̂'*v_body > 0
                 #dC = dot(n̂, v_body/norm(v_body))*dA*n̂
                 #F_element = -0.5*exponential_atmosphere(h)*(norm(v_body)^2)*dC
-                F_element = -0.5*exponential_atmosphere(ρ0, h)*n̂'*v_body*dA*n̂*norm(v_body)*2*(n̂'*v_body/norm(v_body)) #CAREFUL
+                F_element = -0.5*exponential_atmosphere(h)*n̂'*v_body*dA*n̂*norm(v_body)*2*(n̂'*v_body/norm(v_body)) #CAREFUL
                 τ_element = cross((r_element-r_G), F_element)*10^(3)
                 F_aero_body = F_aero_body + F_element
                 τ_aero_body = τ_aero_body + τ_element
@@ -35,8 +35,8 @@ function compute_aero(δ, r_cone, r_G, r, v, q, ρ0)
     return F_aero_body*(A_cone/A), τ_aero_body*(A_cone/A)
 end
 
-function exponential_atmosphere(ρ0, h)
-    #ρ0 = 0.0158*10^9 #0.026455*10^9 #sea level density (kg/km^3)
+function exponential_atmosphere(h)
+    ρ0 = 0.0158*10^9 #0.026455*10^9 #sea level density (kg/km^3)
     h0 = 9.3545 #scale height on Mars(km)
     ρ = ρ0*exp(-h/h0)
 end

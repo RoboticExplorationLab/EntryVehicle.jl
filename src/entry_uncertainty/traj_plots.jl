@@ -75,3 +75,22 @@ function vector_z_body(X, t_sim)
     end
     return(Z_b)
 end
+
+function plot_temp(X, t_sim)
+    plot(t_sim, Z[14, :], label="Spacecaft Temperature")
+    xlabel!("t [s]")
+    ylabel!("Temperature [K]")
+    title!("Spacecraft Temperature")
+end
+
+function plot_acc(X, t_sim)
+    Re = 3389.5
+    R = zeros(length(t_sim))
+    for i = 1:length(t_sim)
+        R[i] = (sqrt(X[1, i]^2+X[2, i]^2+X[3, i]^2)-1)*Re
+    end
+    plot(Z[15, :], R, label="Spacecaft Acceleration")
+    ylabel!("Altitude [km]")
+    xlabel!("Acceleration [g]")
+    title!("Spacecraft Acceleration")
+end

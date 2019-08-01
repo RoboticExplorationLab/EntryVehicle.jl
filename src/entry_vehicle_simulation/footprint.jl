@@ -1,4 +1,4 @@
-function footprint(x0)
+function footprint()
     state_end = zeros(36, 13)
     pos_end = zeros(36, 3)
     list = 0:10:350
@@ -14,6 +14,7 @@ function footprint(x0)
         Q = mat2quat(M)
         Q = qconj(Q)
         @show(Q)
+        x0 = [(3389.5+125)/Re, 0.0/Re, 0.0, Q[1], Q[2], Q[3], Q[4], 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
         t_sim, Z= integration(dyn, x0, Δt)
         state_end[i, :] = Z[:, end]'
         pos_end[i, :] = Z[1:3, end]'
