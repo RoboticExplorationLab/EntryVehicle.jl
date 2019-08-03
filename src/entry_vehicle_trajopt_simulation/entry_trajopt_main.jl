@@ -9,6 +9,7 @@ using MeshIO
 using FileIO
 using LinearAlgebra
 using ODE
+using DifferentialEquations
 using Plots
 pyplot()
 
@@ -29,7 +30,8 @@ entry_vehicle_model = Model(dyna!, n, m)
 #Model definition
 model = entry_vehicle_model
 n = model.n; m = model.m
-
+model_d = rk4(model)
+model_de = discretize_model(model,:DiffEq_Tsit5) #can take y solver from DiffEq
 ####################################
 ##########Initial State#############
 ####################################
@@ -88,7 +90,7 @@ obj = LQRObjective(Q, R, Qf, xf, N)
 ############Constraints#############
 ####################################
 
-bnd = BoundConstraint(n, m, u_min = -0.001, u_max = 0.001)
+bnd = BoundConstraint(n, m, u_min = -0.1, u_max = 0.1)
 constraints = [bnd] #only bounds constraints on my system, put the []
 bnd isa ConstraintSet
 constraints isa ConstraintSet
@@ -98,38 +100,32 @@ CON = Constraints(constraints, N)
 ############Solver Options##########
 ####################################
 
-max_con_viol = 1.0e-10 #been changed
+max_con_viol = 1.0e-2 #been changed # relax at first and then increase progressively
 verbose=true
 
 opts_ilqr = iLQRSolverOptions{T}(verbose=verbose,live_plotting=:off)
 
 opts_al = AugmentedLagrangianSolverOptions{T}(verbose=verbose,
-    opts_uncon=opts_ilqr,
-    cost_tolerance=1.0e-6,
-    cost_tolerance_intermediate=1.0e-2,
-    constraint_tolerance=max_con_viol,
-    penalty_scaling=50.,
-    penalty_initial=10.)
+    opts_uncon=opts_ilqr)
 
-opts_pn = ProjectedNewtonSolverOptions{T}(verbose=verbose,
-    feasibility_tolerance=max_con_viol,
-    solve_type=:feasible)
+# opts_pn = ProjectedNewtonSolverOptions{T}(verbose=verbose,
+#     feasibility_tolerance=max_con_viol,
+#     solve_type=:feasible)
 
 opts_altro = ALTROSolverOptions{T}(verbose=verbose,
-    opts_al=opts_al,
-    R_inf=1.0e-1,
-    resolve_feasible_problem=false,
-    opts_pn=opts_pn,
-    projected_newton=true,
-    projected_newton_tolerance=1.0e-3);
+    opts_al=opts_al);
 
 ####################################
 ########Problem Definition##########
 ####################################
 
 t0 = 0
-tf = 300
-prob = Problem(model, obj, x0 = x0, integration=:rk4, constraints = CON, N=N, tf=tf)
+tf = 20.0
+prob = TrajectoryOptimization.Problem(model_de, obj, x0 = x0, xf=xf, constraints = CON, N=N, tf=tf)
+prob.dt
+plot(prob.U)
+TrajectoryOptimization.rollout!(prob)
+plot(prob.X)
 #prob = Problem(model, obj, x0 = x0, integration=:rk4, N=N, tf=tf)
 TrajectoryOptimization.solve!(prob, opts_al)
 
@@ -144,7 +140,9 @@ U = prob.U
 ###########Visualization############
 ####################################
 
-t_sim = 0:1:100
+t_sim = t0:prob.dt:tf
 QQ = [0.707107;-0.707107; -0.0; -0.0] #Q_image2model
 
 animate_traj(t_sim, Z)
+
+plot(prob.U)

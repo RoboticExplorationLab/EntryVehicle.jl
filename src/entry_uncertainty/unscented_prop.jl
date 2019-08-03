@@ -81,3 +81,29 @@ function Unscented_prop_simple2(mu_1, sig_1, t, w)
     end
     return mu_2, sig_2
 end
+
+function transform_unscented(mu_1, sig_1, t, dt, u, w)
+    n = length(mu_1)
+    α = 2.5
+    #construct sigma_points
+    sigma_points = zeros(n, 2*n+1) #columns are sigma points
+    sigma_points[:, 1] = mu_1
+    L = cholesky(sig_1).L
+    for i = 1:1:n
+        sigma_points[:, i+1] = mu_1 + α*L[:, i]
+    end
+    for i = n+1:1:2*n
+        sigma_points[:, i+1] = mu_1 - α*L[:, i-n]
+    end
+    #get the mean
+    mu_2 = zeros(n)
+    for i=1:1:2*n+1
+        mu_2 += dyna_dis(t, dt, sigma_points[:, i], u, w)/(2*n+1)
+    end
+    #get the covariance
+    sig_2 = zeros(size(sig_1))
+    for i=1:1:2*n+1
+        sig_2 += (dyna_dis(t, dt, sigma_points[:, i], u, w)-mu_2)*(dyna_dis(t, dt, sigma_points[:, i], u, w)-mu_2)'/(2*n+1)
+    end
+    return mu_2, sig_2
+end
