@@ -43,6 +43,12 @@ for i = 1:N
     end
     setobject!(vis["traj"]["t$i"],sphere_small, green_material)
     settransform!(vis["traj"]["t$i"], Translation(Z[1, i]*10, Z[2, i]*10, Z[3, i]*10))
+    camera_translation = Translation(-0.5, 1.0, 1.0)
+    camera_rotation = LinearMap(AngleAxis(0.6*pi, 0.0, 0.0, 1.0))
+    MeshCat.atframe(anim, vis, i) do frame
+        setprop!(frame["/Cameras/default/rotated/<object>"], "zoom", 1.5)
+        settransform!(frame["/Cameras/default"], compose(compose(compose(Translation(Z[1:3, i].*10...), LinearMap(Quat(qmult(Z[4:7, i], QQ)...))), camera_translation), camera_rotation))
+    end
 
 end
 

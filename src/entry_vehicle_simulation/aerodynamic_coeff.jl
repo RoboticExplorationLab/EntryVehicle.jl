@@ -10,9 +10,9 @@ function compute_aero(δ, r_cone, r_G, r, v, q)
     v_body = qrot(qconj(q), v) #velocity of the spacecraft in body_frame in km.s-1
     #@show(norm(v))
     #@show(norm(v_body))
-    if norm(r) > 3489.0
-    @show(acos(v_body[3]/norm(v_body)))
-    end
+    #if norm(r) > 3489.0
+    #@show(acos(v_body[3]/norm(v_body)))
+    #end
     dr = 0.1
     dv = pi/10.0
     A = 0.0

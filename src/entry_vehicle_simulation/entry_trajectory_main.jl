@@ -8,6 +8,7 @@ using FileIO
 using LinearAlgebra
 using ODE
 using Plots
+using DifferentialEquations
 pyplot()
 
 #This file computes an entry trajectory for the given initial parameters...
@@ -37,8 +38,8 @@ M = [-sin(θ) cos(θ) 0.0;
 Q = mat2quat(M) #CHANGE THAT
 Q = qconj(Q)
 #x0 = [(3389.5+125)/Re, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
-x0 = [(3389.5+125)/Re, 0.0, 0.0, Q[1], Q[2], Q[3], Q[4], 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
-Δt = 500 #length simulation
+x0 = [(3389.5+200)/Re, 0.0, 0.0, Q[1], Q[2], Q[3], Q[4], 0.0, 2.0, 1.0, 0.0, 0.0, 0.0]
+Δt = 1500 #length simulation
 
 ####################################
 #####Dynamics - Integration#########
@@ -51,10 +52,11 @@ r_G = [0.2; 0.0; 0.3]
 table_CF, table_Cτ = table_aero(δ, r_cone, r_G)
 
 function dyn(t, x)
-    return dyna_aero(t, x, [0.0]) # torques input should be in m^2*kg*s^(-2), use dyna instead for online aerodynamic coefficients
+    #return dyna_aero(t, x, [0.0], table_CF, table_Cτ) # torques input should be in m^2*kg*s^(-2), use dyna instead for online aerodynamic coefficients
+    return dyna_coeffoff(t, x, [0.0])
 end
 
-t_sim, Z = integration(dyn, x0, Δt)
+t_sim, Z = integration(dyn, x0, Δt) #dyn or dyna_coeffoff_inplace
 
 ####################################
 ######Visualization - MeshCat#######
@@ -69,6 +71,7 @@ QQ = [0.707107;-0.707107; -0.0; -0.0] #Q_image2model
 #Animate Trajectory
 animate_traj(t_sim, Z)
 
+#MeshCat.convert_frames_to_video("C:\\Users\\33645\\Downloads\\meshcat_1565028345425.tar", overwrite=false) #not working so far
 ####################################
 #####State Variables - 2D Plots#####
 ####################################

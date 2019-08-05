@@ -120,11 +120,11 @@ opts_altro = ALTROSolverOptions{T}(verbose=verbose,
 ####################################
 
 t0 = 0
-tf = 20.0
-prob = TrajectoryOptimization.Problem(model_de, obj, x0 = x0, xf=xf, constraints = CON, N=N, tf=tf)
+tf = 50.0
+prob = TrajectoryOptimization.Problem(model_d, obj, x0 = x0, xf=xf, constraints = CON, N=N, tf=tf)
 prob.dt
 plot(prob.U)
-TrajectoryOptimization.rollout!(prob)
+rollout!(prob)
 plot(prob.X)
 #prob = Problem(model, obj, x0 = x0, integration=:rk4, N=N, tf=tf)
 TrajectoryOptimization.solve!(prob, opts_al)

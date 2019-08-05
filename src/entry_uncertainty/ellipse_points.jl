@@ -29,7 +29,7 @@ function points2ellipse(X)
     A = Semidefinite(n)
     b = Variable(n)
     problem = maximize(logdet(A), vcat([norm(A*X[:, i]+b, 2)<=1 for i = 1:1:m], [A[1, 2]==A[2, 1]]))
-    solve!(problem, SCSSolver())
+    Convex.solve!(problem, SCSSolver())
     b = b.value
     A = A.value
     return A, b
