@@ -44,8 +44,14 @@ x0 = [(3389.5+125)/Re, 0.0, 0.0, Q[1], Q[2], Q[3], Q[4], 0.0, 1.0, 0.0, 0.0, 0.0
 #####Dynamics - Integration#########
 ####################################
 
+#new part for offline aerodynamic coefficients computation
+δ = 70*pi/180
+r_cone = 1.3
+r_G = [0.2; 0.0; 0.3]
+table_CF, table_Cτ = table_aero(δ, r_cone, r_G)
+
 function dyn(t, x)
-    return dyna(t, x, [0.0]) # torques input should be in m^2*kg*s^(-2), control right now
+    return dyna_aero(t, x, [0.0]) # torques input should be in m^2*kg*s^(-2), use dyna instead for online aerodynamic coefficients
 end
 
 t_sim, Z = integration(dyn, x0, Δt)

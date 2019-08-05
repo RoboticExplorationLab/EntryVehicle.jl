@@ -11,12 +11,13 @@ function ellipse2points(A, b)
     M = -inv(A)*b #center of the ellipse considered
     P = inv(A'*A)
     W = eigvecs(P) #A symmetric positive definite
+    z = eigvals(P)
     for i = 1:n
-        f(λ) = norm(λ*A*W[:, i], 2)-1
-        z = find_zeros(f, -10^9, 10^9) #refine the boundaries on this problem
-        @show(z)
-        points[:, 2*i-1] = M + z[1]*W[:, i]
-        points[:, 2*i] = M + z[2]*W[:, i]
+        #f(λ) = norm(λ*A*W[:, i], 2)-1
+        #z = find_zeros(f, -10^9, 10^9) #refine the boundaries on this problem
+        #@show(z)
+        points[:, 2*i-1] = M + sqrt(z[i])*W[:, i]
+        points[:, 2*i] = M - sqrt(z[i])*W[:, i]
     end
     return points #return 2n points so far
 end

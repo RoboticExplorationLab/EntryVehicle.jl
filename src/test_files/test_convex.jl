@@ -4,6 +4,7 @@ using LinearAlgebra
 using SCS
 using Plots
 using Roots
+pyplot()
 
 x = [1.55  2.0;
       2.25  2.35;
@@ -43,15 +44,27 @@ M = -inv(A)*b
 scatter!(M[1, :], M[2, :]) #center of the ellipse fitted
 
 D = inv(A'*A)
-W = eigvecs(inv(A'*A))
+W = eigvecs(D)
+V = eigvals(D)
+
+R = W*Diagonal(sqrt.(V))*inv(W)
+VV = eigvals(R)
+WW = eigvecs(R)
 
 scatter!([M[1]+W[1, 1];M[1]+W[1, 2]], [M[2]+W[2, 1];M[2]+W[2, 2]]) #THIS IS THE WAY TO DO IT
 
 f(λ) = norm(A*λ*W[:,1], 2)-1
 z = find_zeros(f, -100, 100)
 
-V1 = M + z[1]*W[:, 1]
-V2 = M + z[2]*W[:, 1]
+#using equation's roots
+V1 = M + z[1]*WW[:, 1]
+V2 = M + z[2]*WW[:, 1]
+
+#using eigenvalues
+v1 = M+sqrt(V[1])*WW[:, 1]
+v2 = M+sqrt(V[2])*WW[:, 2]
+
+scatter!([v1[1], v2[1]], [v1[2], v2[2]])
 
 scatter!([V1[1], V2[1]], [V1[2], V2[2]])
 scatter!([M[1]+z[2]*W[1, 1], M[1]+z[1]*W[1, 1]], [M[2]+z[2]*W[2, 1], M[2]+z[1]*W[2, 1]])

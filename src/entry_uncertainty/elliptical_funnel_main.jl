@@ -25,8 +25,8 @@ Q0 = Matrix(Q0)
 A1 = Q0
 b1 = -inv(A1)*x0
 
-Δt = 2.0 #length simulation
-dt = 1.0
+Δt = 0.5 #length simulation
+dt = 0.01
 T = 0.0:dt:Δt
 
 u = [0.0]
