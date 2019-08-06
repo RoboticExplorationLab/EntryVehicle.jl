@@ -37,7 +37,7 @@ function dyna!(ẋ, x, u)
     v = x[8:10]
     ω = x[11:13]
 
-    #if norm(r) > 1.0
+    if norm(r) > 1.0
 
     #Compute aerodnyamic forces
     ω_mars = [0; 0; 7.095*10^(-5)]
@@ -68,5 +68,7 @@ function dyna!(ẋ, x, u)
     ẋ[4:7] = 0.5*qmult(q, [0; ω])
     ẋ[8:10] = F_total_eci/m
     ẋ[11:13] = Jinv*(τ_total_body-cross(ω, J*ω))
-#else
+else
+    ẋ = zeros(13)
+end
 end

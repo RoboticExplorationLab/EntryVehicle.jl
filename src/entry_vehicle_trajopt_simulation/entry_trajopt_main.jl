@@ -31,7 +31,7 @@ entry_vehicle_model = Model(dyna!, n, m)
 model = entry_vehicle_model
 n = model.n; m = model.m
 model_d = rk4(model)
-model_de = discretize_model(model,:DiffEq_Tsit5) #can take y solver from DiffEq
+model_de = discretize_model(model,:DiffEq_ode78) #can take y solver from DiffEq
 ####################################
 ##########Initial State#############
 ####################################
@@ -119,13 +119,16 @@ opts_altro = ALTROSolverOptions{T}(verbose=verbose,
 ########Problem Definition##########
 ####################################
 
+#ADD INITIAL SEQUENCE OF CONTROL
+
 t0 = 0
-tf = 50.0
+tf = 200.0
 prob = TrajectoryOptimization.Problem(model_d, obj, x0 = x0, xf=xf, constraints = CON, N=N, tf=tf)
 prob.dt
 plot(prob.U)
 rollout!(prob)
 plot(prob.X)
+#savefig("state")
 #prob = Problem(model, obj, x0 = x0, integration=:rk4, N=N, tf=tf)
 TrajectoryOptimization.solve!(prob, opts_al)
 
@@ -146,3 +149,8 @@ QQ = [0.707107;-0.707107; -0.0; -0.0] #Q_image2model
 animate_traj(t_sim, Z)
 
 plot(prob.U)
+title!("Control Sequence [N.m]")
+xlabel!("time [s]")
+#savefig("control_sequence")
+
+plot(prob.X)
