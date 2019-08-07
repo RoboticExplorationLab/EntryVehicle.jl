@@ -7,18 +7,22 @@ using SCS
 function ellipse2points(A, b)
     #A is the matrix we obtain from the previous step
     n = length(A[1, :])
-    points = zeros(n, 2*n)
+    points = zeros(n, 2*n+1)
     M = -inv(A)*b #center of the ellipse considered
-    P = inv(A'*A)
-    W = eigvecs(P) #A symmetric positive definite
-    z = eigvals(P)
+    #P = inv(A'*A)
+    L = A'*A
+    W = eigvecs(L)
+    z = eigvals(L)
+    @show(z)
+    #@show(W)
     for i = 1:n
         #f(λ) = norm(λ*A*W[:, i], 2)-1
         #z = find_zeros(f, -10^9, 10^9) #refine the boundaries on this problem
         #@show(z)
-        points[:, 2*i-1] = M + sqrt(z[i])*W[:, i]
-        points[:, 2*i] = M - sqrt(z[i])*W[:, i]
+        points[:, 2*i-1] = M + (1/sqrt(z[i]))*W[:, i]
+        points[:, 2*i] = M - (1/sqrt(z[i]))*W[:, i]
     end
+    points[:, 2*n+1] = M
     return points #return 2n points so far
 end
 
@@ -28,8 +32,8 @@ function points2ellipse(X)
     #Define Convex Optimization Problem using Convex.jl
     A = Semidefinite(n)
     b = Variable(n)
-    problem = maximize(logdet(A), vcat([norm(A*X[:, i]+b, 2)<=1 for i = 1:1:m], [A[1, 2]==A[2, 1]]))
-    Convex.solve!(problem, SCSSolver())
+    problem = maximize(logdet(A), vcat([norm(A*X[:, i]+b, 2)<=1 for i = 1:1:m], [A[k, j]==A[j, k] for k=1:n for j=1:n])) #[A\Matrix{Float64}(I, n, n)]))
+    Convex.solve!(problem, SCSSolver(verbose=false)) #change to see the
     b = b.value
     A = A.value
     return A, b
