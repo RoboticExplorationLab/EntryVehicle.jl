@@ -43,31 +43,35 @@ M = -inv(A)*b
 
 scatter!(M[1, :], M[2, :]) #center of the ellipse fitted
 
-D = inv(A'*A)
-W = eigvecs(D)
-V = eigvals(D)
+T = A'*A
+W = eigvecs(T)
+V = eigvals(T)
 
+#=
 R = W*Diagonal(sqrt.(V))*inv(W)
 VV = eigvals(R)
-WW = eigvecs(R)
+WW = eigvecs(R)=#
 
-scatter!([M[1]+W[1, 1];M[1]+W[1, 2]], [M[2]+W[2, 1];M[2]+W[2, 2]]) #THIS IS THE WAY TO DO IT
+#scatter!([M[1]+W[1, 1];M[1]+W[1, 2]], [M[2]+W[2, 1];M[2]+W[2, 2]]) #THIS IS THE WAY TO DO IT
 
-f(λ) = norm(A*λ*W[:,1], 2)-1
-z = find_zeros(f, -100, 100)
+#f(λ) = norm(A*λ*W[:,1], 2)-1
+#z = find_zeros(f, -100, 100)
 
 #using equation's roots
-V1 = M + z[1]*WW[:, 1]
-V2 = M + z[2]*WW[:, 1]
+#V1 = M + z[1]*W[:, 1]
+#V2 = M + z[2]*W[:, 1]
 
 #using eigenvalues
-v1 = M+sqrt(V[1])*WW[:, 1]
-v2 = M+sqrt(V[2])*WW[:, 2]
+v1 = M+(1/sqrt(V[2]))*W[:, 2]
+v2 = M+(1/sqrt(V[1]))*W[:, 1]
+v3 = M-(1/sqrt(V[2]))*W[:, 2]
+v4 = M-(1/sqrt(V[1]))*W[:, 1]
 
-scatter!([v1[1], v2[1]], [v1[2], v2[2]])
+scatter!([v1[1], v2[1], v3[1], v4[1]], [v1[2], v2[2], v3[2], v4[2]])
 
-scatter!([V1[1], V2[1]], [V1[2], V2[2]])
-scatter!([M[1]+z[2]*W[1, 1], M[1]+z[1]*W[1, 1]], [M[2]+z[2]*W[2, 1], M[2]+z[1]*W[2, 1]])
+
+#scatter!([V1[1], V2[1]], [V1[2], V2[2]])
+#scatter!([M[1]+z[2]*W[1, 1], M[1]+z[1]*W[1, 1]], [M[2]+z[2]*W[2, 1], M[2]+z[1]*W[2, 1]])
 
 #new test with another parameterization:
 

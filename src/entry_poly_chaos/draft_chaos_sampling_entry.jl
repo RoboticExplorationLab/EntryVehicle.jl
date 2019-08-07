@@ -7,6 +7,8 @@ using DifferentialEquations
 using Statistics
 using Distributions
 using Random
+using Plots
+pyplot()
 
 include("quaternions.jl")
 include("aerodynamic_coeff.jl")
@@ -49,7 +51,7 @@ rand!(D, ξ) #one column is one state sample in x
 #integration parameters
 t0 = 0.0
 dt = 1.0 #stored every unit (no implication on solver)
-tf = 200.0
+tf = 100.0
 t_sim = t0:dt:tf
 w = [0.0158*10^9; 0.0; 0.0; 0.0] #can be varied later
 
@@ -95,4 +97,24 @@ function compute_coeff_PCE(samples, t, Phi) #t is the time step we want to look 
 end
 
 Phi = compute_Phi_matrix(Ms, P, mop, samples, x0, Q0)
-C = compute_coeff_PCE(samples, 100, Phi) #each column contains the coeff PCE of each state variable at time t
+C = compute_coeff_PCE(samples, 50, Phi) #each column contains the coeff PCE of each state variable at time t
+
+
+#reconstruct density distributions
+using KernelDensity
+
+Nr = 1000 #samples for reconstruction
+Ξ = zeros(length(x0), Nr)
+rand!(D, Ξ)
+function compute_u()
+    ũ_x = zeros(Nr, 1)
+    for p=1:1:P
+        ũ_x = ũ_x + [C[p, 1]*PolyChaos.evaluate(mop.ind[p, :], Ξ[:, i], mop)[1] for i=1:Nr]
+    end
+    return ũ_x
+end
+ũ_x = compute_u()[:]
+U = [Ξ[1, :] ũ_x]
+pdf = kde(ũ_x)
+
+plot(pdf.x, pdf.density)

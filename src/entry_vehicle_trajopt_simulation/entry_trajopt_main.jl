@@ -79,7 +79,7 @@ xf[8:10] = [-0.3218613947994733; 0.4350535668863166; 0.0]
 ##########Cost Function#############
 ####################################
 
-N = 101
+N = 201
 Q = Diagonal(0.1I,n)
 R = Diagonal(0.1I,m)
 Qf = Diagonal(100.0I,n) #Put float everywhere
@@ -122,10 +122,9 @@ opts_altro = ALTROSolverOptions{T}(verbose=verbose,
 #ADD INITIAL SEQUENCE OF CONTROL
 
 t0 = 0
-tf = 200.0
-prob = TrajectoryOptimization.Problem(model_d, obj, x0 = x0, xf=xf, constraints = CON, N=N, tf=tf)
+tf = 300.0
+prob = TrajectoryOptimization.Problem(model_de, obj, x0 = x0, xf=xf, constraints = CON, N=N, tf=tf)
 prob.dt
-plot(prob.U)
 rollout!(prob)
 plot(prob.X)
 #savefig("state")
