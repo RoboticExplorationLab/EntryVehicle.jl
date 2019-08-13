@@ -8,6 +8,7 @@ using Statistics
 using Distributions
 using Random
 using Plots
+using KernelDensity
 pyplot()
 
 include("quaternions.jl")
@@ -21,7 +22,7 @@ include("propagation.jl")
 #assume Gaussian disturbances ==> Probabilistic Hermite Polynomials
 
 n = 40 #Number of rec points needed
-d = 4 #higher degree of multivariate polynomials
+d = 5 #higher degree of multivariate polynomials
 op = OrthoPoly("gaussian", d, Nrec=n) #if needed Nrec enables to compute more recurrence coefficients
 opq = OrthoPolyQ(op, 39)
 N = 13 #number of random inputs
@@ -32,7 +33,7 @@ mop.ind
 ##############Sampling##############
 ####################################
 
-Ms = 100 #number of sampled trajectories
+Ms = 2000 #number of sampled trajectories
 Re = 3389.5
 θ = 91*pi/180 #rotation angle about z-axis
 M = [-sin(θ) cos(θ) 0.0;
@@ -51,7 +52,7 @@ rand!(D, ξ) #one column is one state sample in x
 #integration parameters
 t0 = 0.0
 dt = 1.0 #stored every unit (no implication on solver)
-tf = 100.0
+tf = 50.0
 t_sim = t0:dt:tf
 w = [0.0158*10^9; 0.0; 0.0; 0.0] #can be varied later
 
@@ -100,9 +101,7 @@ Phi = compute_Phi_matrix(Ms, P, mop, samples, x0, Q0)
 C = compute_coeff_PCE(samples, 50, Phi) #each column contains the coeff PCE of each state variable at time t
 
 
-#reconstruct density distributions
-using KernelDensity
-
+#reconstruct density distributions (detail for x position)
 Nr = 1000 #samples for reconstruction
 Ξ = zeros(length(x0), Nr)
 rand!(D, Ξ)
@@ -114,7 +113,6 @@ function compute_u()
     return ũ_x
 end
 ũ_x = compute_u()[:]
-U = [Ξ[1, :] ũ_x]
 pdf = kde(ũ_x)
 
 plot(pdf.x, pdf.density)
