@@ -14,16 +14,18 @@ function ellipse2points(A, b)
     F = eigen(L)
     W = F.vectors
     z = F.values
-    @show(A)
-    @show(z)
-    @show(W)
+    R = W*Diagonal(sqrt.(z))*inv(W)
+    #@show(A)
+    #@show(z)
+    #@show(W)
     for i = 1:n
         #f(λ) = norm(λ*A*W[:, i], 2)-1
         #z = find_zeros(f, -10^9, 10^9) #refine the boundaries on this problem
         #@show(z)
-        points[:, 2*i-1] = M + (1/sqrt(z[i]))*W[:, i]
-        points[:, 2*i] = M - (1/sqrt(z[i]))*W[:, i]
-
+        #points[:, 2*i-1] = M + (1/sqrt(z[i]))*W[:, i]
+        #points[:, 2*i] = M - (1/sqrt(z[i]))*W[:, i]
+        points[:, 2*i-1] = M + R[:, i]
+        points[:, 2*i] = M - R[:, i]
     end
     points[:, 2*n+1] = M
     return points #return 2n points so far

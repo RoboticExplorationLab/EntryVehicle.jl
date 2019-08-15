@@ -146,3 +146,17 @@ function plot_traj_center(centerlist)
     end
     plot(X, Y)
 end
+
+#=    R = W*Diagonal(sqrt.(z))*inv(W)
+    @show(z)
+    @show(b)
+    for i = 1:n
+        #going from dim 12 (ellipsoid) to dim 13 (propagation)
+        points[1:3, 2*i-1] = C[1:3] + R[1:3, i] #position
+        points[4:7, 2*i-1] = qmult(C[4:7], [sqrt(abs(1-R[4:6, i]'*R[4:6, i])); R[4:6, i]]) #quat (eigenvalues ?)
+        points[8:13, 2*i-1] = C[8:13] + R[7:12, i] #remaining
+
+        points[1:3, 2*i] = C[1:3] -R[1:3, i] #position
+        points[4:7, 2*i] = qmult(C[4:7], [sqrt(abs(1-R[4:6, i]'*R[4:6, i])); -R[4:6, i]]) #quat (eigenvalues ?)
+        points[8:13, 2*i] = C[8:13] - R[7:12, i] #remaining
+    end=#
