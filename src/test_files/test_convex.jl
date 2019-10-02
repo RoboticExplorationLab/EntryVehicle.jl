@@ -19,7 +19,7 @@ A = Variable(n, n)
 b = Variable(n)
 problem = maximize(logdet(A), [norm(A*x[:, i]+b, 2)<=1 for i = 1:1:m])
 
-Convex.solve!(problem, SCSSolver())
+Convex.solve!(problem, SCSSolver(max_iters=10000))
 
 problem.status
 problem.optval
@@ -66,7 +66,7 @@ v1 = M+(1/sqrt(V[2]))*W[:, 2]
 v2 = M+(1/sqrt(V[1]))*W[:, 1]
 v3 = M-(1/sqrt(V[2]))*W[:, 2]
 v4 = M-(1/sqrt(V[1]))*W[:, 1]
-scatter!([v1[1], v2[1], v3[1], v4[1]], [v1[2], v2[2], v3[2], v4[2]])
+scatter!([v1[1], v2[1], v3[1], v4[1]], [v1[2], v2[2], v3[2], v4[2]], markersize = 20.0)
 
 #this enables to extract different points (not the same as the previous method actually)
 #this second one is the one used by DIRTREL paper in fact.

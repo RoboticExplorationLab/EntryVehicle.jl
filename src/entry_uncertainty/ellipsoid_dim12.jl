@@ -4,11 +4,14 @@ using SCS
 using Mosek
 using LinearAlgebra
 using Plots
+using DifferentialEquations
+using ODE
+using PyPlot
 pyplot()
 
 include("quaternions.jl")
 include("aerodynamic_coeff.jl")
-include("entry_model_dis.jl") #
+include("entry_model_dis.jl")
 include("prop_points.jl")
 
 function ellipse2points(A, b)
@@ -49,7 +52,7 @@ function points2ellipse(X)
     A = Variable(n, n)
     b = Variable(n)
     problem = maximize(logdet(A), [norm(A*X[:, i]+b, 2)<=1 for i = 1:1:m])#, [A[k, j]==A[j, k] for k=1:n for j=1:n])) #[A\Matrix{Float64}(I, n, n)]))
-    Convex.solve!(problem, SCSSolver())
+    Convex.solve!(problem, SCSSolver(verbose = false))
     b = b.value
     A = A.value
     return A, b
@@ -80,10 +83,10 @@ end
 
 #should start with ellipse in dim 12 then I believe
 #=function prop
-X1 = ellipse2points(A1, b1) #input in dim 12 and output in dim 13
-X2 = propagation(X1) #input in dim 13 and output in dim 13
-X3 = points13_12(X2) #input in dim 13 and output in dim 12
-A2, b2 = points2ellipse(X3) #ouput ellipse in dim 12 =#
+#X1 = ellipse2points(A1, b1) #input in dim 12 and output in dim 13
+#X2 = propagation(X1) #input in dim 13 and output in dim 13
+#X3 = points13_12(X2) #input in dim 13 and output in dim 12
+#A2, b2 = points2ellipse(X3) #ouput ellipse in dim 12 =#
 
 
 Re = 3389.5
@@ -101,14 +104,18 @@ Q0 = Matrix(Q0)
 A1 = inv(sqrt(Q0))
 b1 = -A1*x0
 
-Δt = 1.0 #length simulation
-dt = 0.01
+Δt = 10.0 #length simulation
+dt = 0.1
 T = 0.0:dt:Δt
 
 u = [0.0]
 w = [0.0158*10^9; 0.0; 0.0; 0.0]
 
 n = length(x0)
+δ = 70*pi/180
+r_cone = 1.3
+r_G = [0.2; 0.0; 0.3]
+table_CF, table_Cτ = table_aero(δ, r_cone, r_G)
 
 function propagation(A1, b1)
     blist = zeros(n, length(T))
@@ -119,7 +126,7 @@ function propagation(A1, b1)
         t = T[i]
         @show(t)
         X1 = ellipse2points(A1, b1) #return a set of points
-        X2 = prop_points(X1, t, dt, u, w)
+        X2 = prop_points_continuous(X1, dt, u, w) #prop_points(X1, t, dt, u, w)
         X3 = points13_12(X2)
         A2, b2 = points2ellipse(X3)
         blist[:, i] = b1
@@ -136,7 +143,7 @@ end
 Alist, blist, centerlist, XX = propagation(A1, b1)
 
 #test plots ellipses (in X and Y) : not good
-j = 70
+j = 100
 angles = 0.0:0.01:2*pi
 B = zeros(2, length(angles))
 for i = 1:1:length(angles)
@@ -144,8 +151,11 @@ for i = 1:1:length(angles)
 end
 
 ellipse  = Alist[1:2, 1:2, j] \ B
-plot(ellipse[1, :], ellipse[2, :])
+plot!(ellipse[1, :], ellipse[2, :])
 scatter!([centerlist[1, j]],[centerlist[2, j]] )
 scatter!(XX[1, :, j], XX[2, :, j])
 
 plot_traj_center(centerlist)
+savefig("uncertainty")
+xlabel!("X")
+ylabel!("Y")
