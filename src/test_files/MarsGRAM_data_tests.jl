@@ -68,13 +68,24 @@ function atmosphere_density_chebyshev(altitude)
     return density
 end
 
+function atmosphere_density_exp(altitude)
+    ρ0 = 0.0158 #*10^9 #sea level density (kg/m^3) TBC
+    h0 = 9.3545 #scale height on Mars(km)
+    ρ = ρ0 * exp(-altitude/h0)
+    return ρ
+end
+
+
 #Verification Plots
 
 altitude = 0.0:0.5:100
 dens = zeros(length(altitude))
+dens_exp = zeros(length(altitude))
 for i = 1:length(altitude)
     dens[i] = atmosphere_density_chebyshev(altitude[i])
+    dens_exp[i] = atmosphere_density_exp(altitude[i])
 end
 plot(dens, altitude)
 ylabel!("altitude")
 xlabel!("density")
+plot!(dens_exp, altitude)
