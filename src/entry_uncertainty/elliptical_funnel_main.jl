@@ -33,7 +33,7 @@ Q0 = Matrix(Q0)
 A1 = inv(sqrt(Q0))
 b1 = -A1*x0
 
-Δt = 100 #length simulation
+Δt = 20 #length simulation
 dt = 1
 T = 0.0:dt:Δt
 
@@ -86,7 +86,7 @@ function plott()
     return 0
 end
 
-j = 40
+j = 20
 angles = 0.0:0.01:2*pi
 B = zeros(2, length(angles))
 for i = 1:1:length(angles)
