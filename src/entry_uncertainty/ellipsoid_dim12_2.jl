@@ -25,21 +25,17 @@ function ellipse2points(A, b)
     #@show(M[4:6])
     C[4] = sqrt(1-M[4:6]'*M[4:6])
     C[5:end] = M[4:end]
-    L = A'*A
-    F = eigen(L)
-    W = F.vectors
-    z = F.values
-    @show(z)
+    W = inv(A) #W is D^(0.5) if A coming from convex problem is symmetric...
     #@show(b)
     for i = 1:n
         #going from dim 12 (ellipsoid) to dim 13 (propagation)
-        points[1:3, 2*i-1] = C[1:3] + (1/sqrt(z[i]))*W[1:3, i] #position
+        points[1:3, 2*i-1] = C[1:3] + W[1:3, i] #position
         points[4:7, 2*i-1] = qmult(C[4:7], [sqrt(abs(1-W[4:6, i]'*W[4:6, i])); W[4:6, i]]) #quat (eigenvalues ?)
-        points[8:13, 2*i-1] = C[8:13] + (1/sqrt(z[i]))*W[7:12, i] #remaining
+        points[8:13, 2*i-1] = C[8:13] + W[7:12, i] #remaining
 
-        points[1:3, 2*i] = C[1:3] - (1/sqrt(z[i]))*W[1:3, i] #position
+        points[1:3, 2*i] = C[1:3] - W[1:3, i] #position
         points[4:7, 2*i] = qmult(C[4:7], [sqrt(abs(1-W[4:6, i]'*W[4:6, i])); -W[4:6, i]]) #quat (eigenvalues ?)
-        points[8:13, 2*i] = C[8:13] - (1/sqrt(z[i]))*W[7:12, i] #remaining
+        points[8:13, 2*i] = C[8:13] - W[7:12, i] #remaining
     end
     points[:, 2*n+1] = C
     return points #return 2n+1 points (in dim 13 from ellipsoid in 12) so far
@@ -49,16 +45,14 @@ function points2ellipse(X)
     #X is the set of points propagated through the non linear dynamics
     n, m = size(X);
     #Define Convex Optimization Problem using Convex.jl
-    A = Variable(n, n)
+    A = Semidefinite(n)
     b = Variable(n)
-    problem = maximize(logdet(A), [norm(A*X[:, i]+b, 2)<=1 for i = 1:1:m])#, [A[k, j]==A[j, k] for k=1:n for j=1:n])) #[A\Matrix{Float64}(I, n, n)]))
+    problem = maximize(logdet(A), vcat([norm(A*X[:, i]+b, 2)<=1 for i = 1:1:m], [A[k, j]==A[j, k] for k=1:n for j=1:n])) #[A\Matrix{Float64}(I, n, n)]))
     Convex.solve!(problem, SCSSolver(verbose = false))
     b = b.value
     A = A.value
     return A, b
 end
-
-
 
 function points13_12(X)
     n, m = size(X);
@@ -90,22 +84,22 @@ end
 
 
 Re = 3389.5
-θ = 91*pi/180 #rotation angle about z-axis
+θ = 110*pi/180 #rotation angle about z-axis
 M = [-sin(θ) cos(θ) 0.0;
      0.0 0.0 1.0;
      cos(θ) sin(θ) 0.0]
 Q = mat2quat(M)
 Q = qconj(Q)
 x0 = [(3389.5+125)/Re; 0.0; 0.0; Q[2]; Q[3]; Q[4]; 0.0; 1.0; 0.0; 0.0; 0.0; 0.0]
-Q0 = Diagonal(0.0001*ones(12))
+Q0 = Diagonal(0.000000001*ones(12))
 #Diagonal([0.1/Re; 0.1/Re; 0.1/Re; 0.01; 0.01; 0.01; 0.01; 0.0001; 0.0001; 0.0001; 0.01; 0.01; 0.01])
 Q0 = Matrix(Q0)
 
-A1 = inv(sqrt(Q0))
-b1 = -A1*x0
+A0 = inv(sqrt(Q0))
+b0 = -A1*x0
 
-Δt = 10.0 #length simulation
-dt = 0.05
+Δt = 3.0 #length simulation
+dt = 0.1
 T = 0.0:dt:Δt
 
 u = [0.0]
@@ -140,10 +134,10 @@ function propagation(A1, b1)
     return Alist, blist, centerlist, XX
 end
 
-Alist, blist, centerlist, XX = propagation(A1, b1)
+Alist, blist, centerlist, XX = propagation(A0, b0)
 
 #test plots ellipses (in X and Y) : not good
-j = 100
+j = 31
 angles = 0.0:0.01:2*pi
 B = zeros(2, length(angles))
 for i = 1:1:length(angles)
@@ -151,11 +145,11 @@ for i = 1:1:length(angles)
 end
 
 ellipse  = Alist[1:2, 1:2, j] \ B
-plot!(ellipse[1, :], ellipse[2, :])
+Plots.plot!(ellipse[1, :], ellipse[2, :])
 scatter!([centerlist[1, j]],[centerlist[2, j]] )
-scatter!(XX[1, :, j], XX[2, :, j])
+Plots.scatter(XX[1, :, j], XX[2, :, j])
 
 plot_traj_center(centerlist)
-savefig("uncertainty")
+Plots.savefig("uncertainty-0.001-10sec-2")
 xlabel!("X")
 ylabel!("Y")
