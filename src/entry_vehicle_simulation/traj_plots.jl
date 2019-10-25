@@ -16,13 +16,20 @@ function plot_traj(X)
     title!("Spacecraft Trajectory in MCI - XY projection")
 end
 
+function plot_traj2(X)
+    Plots.plot!(X[1, :]*Re, X[2, :]*Re, label="Spacecraft Trajectory", show=true)
+    xlabel!("X [km]")
+    ylabel!("Y [km]")
+    title!("Spacecraft Trajectory in MCI - XY projection")
+end
+
 function plot_altitude(X, t_sim)
     Re = 3389.5
     R = zeros(length(t_sim))
     for i = 1:length(t_sim)
         R[i] = (sqrt(X[1, i]^2+X[2, i]^2+X[3, i]^2)-1)*Re
     end
-    Plots.plot(t_sim, R, label="Spacecraft Altitude")
+    Plots.plot!(t_sim, R, label="Spacecraft Altitude", show=true)
     xlabel!("t [s]")
     ylabel!("altitude [km]")
     title!("Spacecraft Altitude")
