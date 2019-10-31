@@ -18,7 +18,7 @@ function integration2(fnc, x0, Δt)
     Re = 3389.5
     tspan = (0.0, Δt)
     prob = ODEProblem(fnc, x0, tspan)
-    sol = solve(prob,AutoTsit5(Rosenbrock23()),reltol=1e-8,abstol=1e-8) #Tsit5(), Rodas4(), AutoTsit5(Rosenbrock23())
+    sol = solve(prob,reltol=1e-10,abstol=1e-10) #Tsit5(), Rodas4(), AutoTsit5(Rosenbrock23())
     n = 13 #number of states
     t_sim = sol.t
     z_sim = sol.u
