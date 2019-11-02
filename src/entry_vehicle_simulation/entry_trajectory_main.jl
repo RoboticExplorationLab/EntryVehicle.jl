@@ -10,6 +10,7 @@ using ODE
 using Plots
 using DifferentialEquations
 pyplot()
+gr()
 
 #This file computes an entry trajectory for the given initial parameters...
 #and enables its visualization using MeshCat
@@ -39,7 +40,7 @@ Q = mat2quat(M) #CHANGE THAT
 Q = qconj(Q)
 #x0 = [(3389.5+125)/Re, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
 x0 = [(3389.5+125)/Re, 0.0, 0.0, Q[1], Q[2], Q[3], Q[4], 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
-Δt = 60 #length simulation
+Δt = 280 #length simulation
 
 ####################################
 #####Dynamics - Integration#########
@@ -48,16 +49,18 @@ x0 = [(3389.5+125)/Re, 0.0, 0.0, Q[1], Q[2], Q[3], Q[4], 0.0, 1.0, 0.0, 0.0, 0.0
 #new part for offline aerodynamic coefficients computation
 δ = 70*pi/180
 r_cone = 1.3
+r_min = 0.2
 r_G = [0.2; 0.0; 0.3]
-table_CF, table_Cτ = table_aero(δ, r_cone, r_G)
+table_CF, table_Cτ = table_aero_spherecone(δ, r_min, r_cone, r_G)
 
 function dyn(t, x)
     #return dyna_aero(t, x, [0.0], table_CF, table_Cτ) # torques input should be in m^2*kg*s^(-2), use dyna instead for online aerodynamic coefficients
     return dyna_coeffoff(t, x, [0.0])
 end
 
-t_sim, Z = integration(dyn, x0, Δt) #dyn or dyna_coeffoff_inplace
-
+#t_sim, Z = integration(dyn, x0, Δt) #dyn or dyna_coeffoff_inplace
+#can change to get integration or integration 2 here
+t_sim, Z = integration2(dyna_coeffoff_inplace!, x0, Δt)
 ####################################
 ######Visualization - MeshCat#######
 ####################################
@@ -87,3 +90,5 @@ plot_quaternions(Z)
 plot_ang_vel(Z)
 #savefig("5")
 norm_quaternions(Z, t_sim)
+
+#plot_sphere(Z, t_sim)

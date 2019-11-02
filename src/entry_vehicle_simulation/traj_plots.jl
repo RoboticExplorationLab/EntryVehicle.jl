@@ -9,8 +9,23 @@
 
 #Plot functions
 
+function plot_sphere(X, t_sim)
+    Re = 3389.5
+    R = zeros(length(t_sim))
+    V = zeros(length(t_sim))
+    for i = 1:length(t_sim)
+        R[i] = (sqrt(X[1, i]^2+X[2, i]^2+X[3, i]^2)-1)*Re
+        V[i] = sqrt(X[8, i]^2+X[9, i]^2+X[10, i]^2)
+    end
+    Plots.plot(t_sim, R, label="Spacecraft Altitude", show=true, color=:red)
+    Plots.plot!(twinx(), V, label="Spacecraft Velocity", show=true, color =:blue)
+
+    xlabel!("t [s]")
+    title!("Spacecraft Altitude and Velocity")
+end
+
 function plot_traj(X)
-    Plots.plot!(X[1, :]*Re, X[2, :]*Re, label="Spacecraft Trajectory")
+    Plots.plot(X[1, :]*Re, X[2, :]*Re, label="Spacecraft Trajectory")
     xlabel!("X [km]")
     ylabel!("Y [km]")
     title!("Spacecraft Trajectory in MCI - XY projection")
@@ -29,7 +44,7 @@ function plot_altitude(X, t_sim)
     for i = 1:length(t_sim)
         R[i] = (sqrt(X[1, i]^2+X[2, i]^2+X[3, i]^2)-1)*Re
     end
-    Plots.plot!(t_sim, R, label="Spacecraft Altitude", show=true)
+    Plots.plot(t_sim, R, label="Spacecraft Altitude", show=true)
     xlabel!("t [s]")
     ylabel!("altitude [km]")
     title!("Spacecraft Altitude")

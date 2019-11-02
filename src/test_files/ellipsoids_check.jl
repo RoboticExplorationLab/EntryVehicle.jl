@@ -232,8 +232,9 @@ b = Variable(n)
 problem = maximize(logdet(A), vcat([norm(A*x[:, i]+b, 2)<=1 for i = 1:1:m], [A[k, j]==A[j, k] for k=1:n for j=1:n]))
 
 #s = GurobiSolver()
+using MathOptInterface
 s = SCSSolver()
-m = MosekSolver() #need to use MathProgBase I believe
+m = Mose() #need to use MathProgBase I believe
 Convex.solve!(problem, s)
 
 problem.status
@@ -460,3 +461,11 @@ scatter!(XX[1, :, j], XX[2, :, j])
 scatter!(E[1, :, j], E[2, :, j])
 
 Plots.savefig("Duffing-20 sec- 0.2 step - all- ini 0.5, 0.2 - -1, 1, 0.2, 0.1, 1.0")
+
+#MOSEK tests
+using MosekTools
+using Mosek
+using JuMP
+
+model = Mosek.Optimizer()
+model = Model(with_optimizer(Mosek.Optimizer, QUIET=false, INTPNT_CO_TOL_DFEAS=1e-7))

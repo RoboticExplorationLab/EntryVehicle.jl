@@ -25,7 +25,7 @@ function prop_points_last(X, dt, u, w)
     m = length(X[1, :])
     Xnew = zeros(size(X))
     for i=1:1:m
-        t_sim, Z = integration2(dyna_coeffoff_inplace, X[:, i], dt)
+        t_sim, Z = integration2(dyna_coeffoff_inplace!, X[:, i], dt)
         Xnew[:, i] = Z[:, end]
     end
     return Xnew

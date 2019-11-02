@@ -10,14 +10,46 @@ using PyPlot
 pyplot()
 gr()
 
-
 include("quaternions.jl")
 include("aerodynamic_coeff.jl")
 include("entry_model.jl")
 include("integration.jl")
 include("prop_points.jl")
 
-#
+#used to compute the time sequence for the nominal trajectory
+
+ ####################################
+ ######Simulation Parameters#########
+ ####################################
+
+Re = 3389.5
+θ = 91*pi/180 #rotation angle about z-axis
+M = [-sin(θ) cos(θ) 0.0;
+      0.0 0.0 1.0;
+      cos(θ) sin(θ) 0.0]
+Q = mat2quat(M) #CHANGE THAT
+Q = qconj(Q)
+#x0 = [(3389.5+125)/Re, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
+x0 = [(3389.5+125)/Re, 0.0, 0.0, Q[1], Q[2], Q[3], Q[4], 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
+Δt = 60 #length simulation
+
+ ####################################
+ #####Dynamics - Integration#########
+ ####################################
+
+t_sim_nom, Z = integration2(dyna_coeffoff_inplace!, x0, Δt)
+
+ #new part for offline aerodynamic coefficients computation
+δ = 70*pi/180
+r_cone = 1.3
+r_G = [0.2; 0.0; 0.3]
+table_CF, table_Cτ = table_aero(δ, r_cone, r_G)
+
+t_sim_nom, Z = integration2(dyna_coeffoff_inplace!, x0, Δt)
+
+######################################
+########Ellipsoid propagation#########
+######################################
 
 function ellipse2points(A, b, x0)
     #A is the matrix we obtain from the previous step
@@ -75,8 +107,8 @@ function plot_traj_center(centerlist)
     X = zeros(length(T))
     Y = zeros(length(T))
     for j=1:length(T)
-        X[j] = centerlist[1, j]*Re
-        Y[j] = centerlist[2, j]*Re
+        X[j] = centerlist[1, j]#*Re
+        Y[j] = centerlist[2, j]#*Re
     end
     Plots.scatter(X, Y)
 end
@@ -104,9 +136,10 @@ Q0 = Matrix(Q0)
 A1 = inv(sqrt(Q0))
 b1 = -A1*x0_12
 
-Δt = 100.0 #length simulation
+Δt = 80.0 #length simulation
 dt = 0.5
 T = 0.0:dt:Δt
+#T = t_sim_nom
 
 u = [0.0]
 w = [0.0158*10^9; 0.0; 0.0; 0.0]
@@ -133,6 +166,13 @@ function propagation(A1, b1)
     centerlist = zeros(n, length(T))
     XX = zeros(n+1, 2*n+1, length(T))
     for i=1:1:length(T)
+        #=if i ==1
+            dt = T[i]
+            t = T[i]
+        else
+            t = T[i] #don't really need that, autonomous system here in fact
+            dt = T[i]-T[i-1]
+        end=#
         t = T[i]
         @show(t)
         X1 = ellipse2points(A1, b1, x0) #return a set of points in dim 13
@@ -155,7 +195,7 @@ end
 Alist, blist, centerlist, XX = propagation(A1, b1)
 
 #test plots ellipses (in X and Y) : not good
-j = 1
+j = 2
 angles = 0.0:0.05:2*pi
 B = zeros(2, length(angles))
 for i = 1:1:length(angles)
@@ -167,9 +207,9 @@ Plots.plot!(ellipse[1, :], ellipse[2, :])
 scatter!([centerlist[1, j]],[centerlist[2, j]] )
 scatter!(XX[1, :, j], XX[2, :, j])
 
-T = 1:120 #100 means I go for 50 ec
-plot_traj_center(centerlist[:, 1:120])
+T = 1:100 #100 means I go for 50 ec
+plot_traj_center(centerlist[:, 1:100])
 
-Plots.savefig("Propagation-entry-60sec-0.5 step- 15000 maxiters")
+Plots.savefig("Propagation-entry-50sec-0.5 step- 15000 maxiters-more uncertainty")
 
 #Alist[:, :, 50] #check symmetry
