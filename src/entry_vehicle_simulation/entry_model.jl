@@ -284,8 +284,11 @@ function dyna_coeffoff_inplace!(du, u, p, t) #For DiffEq
         CF = table_CF[α, :]
         Cτ = table_Cτ[α, :]
         h = (norm(r)-1.0)*Re
-        F_aero_body = -0.5*exponential_atmosphere(h)*norm(v_rel)^2*CF
-        τ_aero_body = -0.5*exponential_atmosphere(h)*norm(v_rel)^2*Cτ
+        #F_aero_body = -0.5*exponential_atmosphere(h)*norm(v_rel)^2*CF
+        #τ_aero_body = -0.5*exponential_atmosphere(h)*norm(v_rel)^2*Cτ
+        density = atmospheric_density_interpolated_marsgram(h)*10^9 #convert to kg.km-3
+        F_aero_body = -0.5*density*norm(v_rel)^2*CF
+        τ_aero_body = -0.5*density*norm(v_rel)^2*Cτ
         F_aero_eci = qrot(q, F_aero_body)
 
         #Compute gravitation + J2 acceleration

@@ -313,6 +313,7 @@ function wrapper_density(LSTFL="INPUT.txt", OUTFL="OUTPUT.txt",
 
         #Initialize density array
         dens_results = []
+        height = FHGT:DELHGT:FHGT+(NPOS-1)*DELHGT
 
         #Modifications expected if MonteCarlo Number is more than 1
         for I=0:1:MAXNUM[1]
@@ -331,9 +332,8 @@ function wrapper_density(LSTFL="INPUT.txt", OUTFL="OUTPUT.txt",
             append!(dens_results, DENS)
         end
 
-        return dens_results
+        return height, dens_results
 end
 
-L = wrapper_density()
-
+h, d = wrapper_density()
 #remove writing when using setup_m10_ subroutine

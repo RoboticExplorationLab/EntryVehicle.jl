@@ -9,6 +9,8 @@ using LinearAlgebra
 using ODE
 using Plots
 using DifferentialEquations
+using ApproxFun
+using Libdl
 pyplot()
 gr()
 
@@ -25,6 +27,9 @@ include("entry_model.jl") #entire dynamics model
 include("integration.jl") #integration process
 include("traj_plots.jl") #plots functions
 include("animate_traj.jl") #animation function
+
+include("interpolation.jl")
+include("marsgram_wrapper.jl")
 
 
 ####################################
