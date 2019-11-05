@@ -3,6 +3,7 @@ using Plots
 using DifferentialEquations
 using ODEInterfaceDiffEq
 pyplot()
+gr()
 
 f(u, p, t) = 4*u*(1-u);
 u0 = pi/10;
@@ -171,3 +172,65 @@ t_sim, X = prop_K(0.5)
 
 #Plot discrete version of dynamics (not discretized but discrete!)
 plot(t_sim, X)
+
+
+#okay so try integrator on the system du/dt = -u+u^2
+
+function basis(u)
+    x = [u;u^2;u^3;u^4;u^5;u^6;u^7;u^8;u^9;u^10]
+    return x
+end
+
+function integrator(u0, tend, dt)
+    A = zeros(10, 10)
+    for i=1:1:9
+        A[i,i] = -i
+        A[i,i+1] = i
+    end
+    A[10,10] = -10
+    Phi = exp(A*dt)
+    T = 0.0:dt:t_end
+    U = zeros(length(T))
+    U[1] = u0
+    for i=1:1:length(T)-1
+        U[i+1] = Phi[1, :]'*basis(U[i])
+    end
+    return T, U
+end
+
+function exact_solution(t, u0)
+    return u0/(u0+(1-u0)*exp(t))
+end
+
+u0 = 0.1
+t_end = 30.0
+dt = 0.1
+t_sim, U = integrator(u0, t_end, dt)
+
+plot(t_sim, U)
+plot!(t_sim, [exact_solution(t, u0) for t in t_sim])
+
+V = [exact_solution(t, u0) for t in t_sim]
+W = zeros(length(t_sim))
+for i=1:1:length(U)
+    W[i] = U[i]-V[i]
+end
+W
+
+plot(t_sim, W)
+
+#test to diagonalize matrix A here
+A = zeros(10, 10)
+for i=1:1:9
+    A[i,i] = -i
+    A[i,i+1] = i
+end
+A[10,10] = -10
+
+F = eigen(A)
+V = F.values
+W = F.vectors
+
+W*Diagonal(V)*inv(W) #okay that gives A back (almost)
+
+inv(W)
