@@ -8,6 +8,7 @@ using Distributions
 using Mosek
 using Random
 pyplot()
+gr()
 
 D = Uniform(-10, 10)
 x = zeros(3, 15)
@@ -174,7 +175,7 @@ A = Semidefinite(n)
 v = Variable(n)
 problem = maximize(logdet(A), [norm(A*(x[:, i]-v))<=1 for i = 1:1:m])
 
-solve!(problem, SCSSolver())
+Convex.solve!(problem, SCSSolver())
 
 problem.status
 problem.optval
