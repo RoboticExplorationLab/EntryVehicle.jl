@@ -5,7 +5,7 @@ vis = Visualizer()
 open(vis)
 delete!(vis)
 #Plot Mars in MeshCat
-image = PngImage(joinpath(MeshCat.VIEWER_ROOT, "..", "data", "Mars.png"))
+image = PngImage(joinpath(MeshCat.VIEWER_ROOT, "..", "data", "8k_mars.png"))
 texture = Texture(image=image)
 material = MeshLambertMaterial(map=texture)
 planet = HyperSphere(Point(0.,0,0), 5.0)
@@ -14,7 +14,7 @@ setobject!(vis["planet"], geometry, material)
 settransform!(vis["planet"], LinearMap(AngleAxis(pi/2, 1, 0, 0))) #rotate Planet
 
 #Plot Spacecraft
-image = PngImage(joinpath(MeshCat.VIEWER_ROOT, "..", "data", "Rex.png"))
+image = PngImage(joinpath(MeshCat.VIEWER_ROOT, "..", "data", "tex_body.png"))
 texture= Texture(image = image)
 material = MeshLambertMaterial(map=texture)
 cap = load(joinpath(MeshCat.VIEWER_ROOT, "..", "data", "orion_100_smaller.obj"), GLUVMesh)
