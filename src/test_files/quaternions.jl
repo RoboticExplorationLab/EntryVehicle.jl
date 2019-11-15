@@ -62,7 +62,7 @@ end
 
 function log_quat(q)
     if norm(q[2:4]) != 0.0
-        Q = [log(norm(q));acos(q[1]/norm(q))*(q[2:4]/(norm(q[2:4])))]
+        Q = [0.0;acos(q[1]/norm(q))*(q[2:4]/(norm(q[2:4])))]
     else
         Q = [0.0; 0.0; 0.0; 0.0]
     end

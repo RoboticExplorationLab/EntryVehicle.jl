@@ -16,11 +16,11 @@ rand!(D, x)
 
 n, m = size(x);
 
-A = Variable(n, n)
+A = Semidefinite(n)
 b = Variable(n)
 problem = maximize(logdet(A), [norm(A*x[:, i]+b, 2)<=1 for i = 1:1:m])
 
-Convex.solve!(problem, SCSSolver(max_iters=10000))
+Convex.solve!(problem, GurobiSolver())
 
 problem.status
 problem.optval
@@ -220,3 +220,36 @@ V[2]*W[:, 2]
 
 U*W[:, 3]
 V[3]*W[:, 3]
+
+#ENIEME test on ellipses in 3D
+using LinearAlgebra
+
+Q = Matrix(Diagonal([0.1; 0.1; 1.0])) #covariance matrix
+x = [3.0;2.0;1.0] #center (nominal value)
+A = sqrt(inv(Q)) #matrix substitution
+b = -A*x #center subsitution
+
+A = Matrix(cholesky(inv(Q)).U)
+
+W = inv(A)
+
+#A = A1[4:6, 4:6]
+#b = b1[4:6]
+angles = 0.0:0.05:2*pi
+angles2 = 0.0:0.05:2*pi
+B = zeros(3)
+function job()
+      B = zeros(3)
+      for i = 1:1:length(angles)
+            for j = 1:1:length(angles2)
+                  B = hcat(B, [cos(angles[i])*sin(angles2[j]) - b[1]; sin(angles[i])*sin(angles2[j]) - b[2]; cos(angles2[j])-b[3]])
+            end
+      end
+      return B
+end
+B = job()
+
+ellipse  = A \ B
+Plots.plot(ellipse[1, 2:end], ellipse[2, 2:end], ellipse[3, 2:end])
+
+scatter3d!(W[1, :], W[2, :], W[3, :])
