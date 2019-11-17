@@ -49,3 +49,27 @@ mean(pos_end[:, 3])
 mean(state_end[:, 8])
 mean(state_end[:, 9])
 mean(state_end[:, 10]) =#
+
+##########################
+######### Plots ##########
+##########################
+
+include("space_mechanics.jl")
+
+function convertt(pos_end)
+    pos_geoc = zeros(size(pos_end))
+    for i=1:1:36
+        pos_ecef = eci2ecef(0.1, pos_end[i, :])
+        pos_geoc[i, :] = ecef2geoc(pos_ecef)
+        #pos_geod[i, :] = geoc2geod(pos_geoc)
+    end
+    return pos_geoc
+end
+
+pos_geoc = convertt(pos_end)
+
+scatter(pos_geoc[:, 2], pos_geoc[:, 3])
+ylims!((10.0, 11.0))
+xlabel!("longitude - degrees")
+ylabel!("latitude - degrees")
+title!("Landing footprint")

@@ -4,7 +4,7 @@ vis = Visualizer()
 open(vis)
 
 #Plot Mars in MeshCat
-image = PngImage(joinpath(MeshCat.VIEWER_ROOT, "..", "data", "Mars.png"))
+image = PngImage(joinpath(MeshCat.VIEWER_ROOT, "..", "data", "8k_mars.png"))
 texture = Texture(image=image)
 material = MeshLambertMaterial(map=texture)
 planet = HyperSphere(Point(0.,0,0), 10.0)
