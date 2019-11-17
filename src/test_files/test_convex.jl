@@ -224,7 +224,7 @@ V[3]*W[:, 3]
 #ENIEME test on ellipses in 3D
 using LinearAlgebra
 
-Q = Matrix(Diagonal([0.1; 0.1; 1.0])) #covariance matrix
+Q = Matrix(Diagonal([0.1^2; 0.1^2; 0.4^2])) #covariance matrix
 x = [3.0;2.0;1.0] #center (nominal value)
 A = sqrt(inv(Q)) #matrix substitution
 b = -A*x #center subsitution

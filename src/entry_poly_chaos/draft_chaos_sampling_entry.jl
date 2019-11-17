@@ -9,12 +9,14 @@ using Distributions
 using Random
 using Plots
 using KernelDensity
+
 pyplot()
 
 include("quaternions.jl")
 include("aerodynamic_coeff.jl")
 include("entry_model.jl")
 include("propagation.jl")
+include("animate_sampling.jl")
 
 ####################################
 ###########Generate Basis###########
@@ -23,10 +25,10 @@ include("propagation.jl")
 
 n = 40 #Number of rec points needed
 d = 5 #higher degree of multivariate polynomials
-op = OrthoPoly("gaussian", d, Nrec=n) #if needed Nrec enables to compute more recurrence coefficients
-opq = OrthoPolyQ(op, 39)
+op = OrthoPoly("gaussian", d , Nrec=n) #if needed Nrec enables to compute more recurrence coefficients
+op = GaussOrthoPoly(d)
 N = 13 #number of random inputs
-mop = MultiOrthoPoly([opq for i=1:N], d)
+mop = MultiOrthoPoly([op for i=1:N], d)
 P = mop.dim #total number of Polynomials
 mop.ind
 ####################################
@@ -42,7 +44,7 @@ M = [-sin(θ) cos(θ) 0.0;
 q = mat2quat(M)
 q = qconj(q)
 x0 = [(3389.5+125)/Re, 0.0, 0.0, q[1], q[2], q[3], q[4], 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
-Q0 = Diagonal([1.0/Re; 1.0/Re; 1.0/Re; 0.001; 0.001; 0.001; 0.001; 0.001; 0.001; 0.001; 0.001; 0.001; 0.001])
+Q0 = Diagonal([1.0/Re; 1.0/Re; 1.0/Re; 0.0000001; 0.000001; 0.000000001; 0.0000001; 0.001; 0.001; 0.001; 0.001; 0.001; 0.001])
 Q0 = Matrix(Q0) #Covariance Matrix (no correlation)
 
 D = MvNormal(x0, Q0)
@@ -116,3 +118,15 @@ ũ_x = compute_u()[:]
 pdf = kde(ũ_x)
 
 plot(pdf.x, pdf.density)
+
+gr()
+
+using MeshCat
+using CoordinateTransformations
+using GeometryTypes: GeometryTypes, HyperRectangle, Vec, Point,
+    HomogenousMesh, SignedDistanceField, HyperSphere, GLUVMesh
+using Colors: RGBA, RGB
+using MeshIO
+using FileIO
+QQ = [0.707107;-0.707107; -0.0; -0.0]
+animate_traj(t_sim, samples)

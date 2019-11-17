@@ -9,6 +9,7 @@ using Mosek
 using JuMP
 using MosekTools
 using MathOptInterface
+using ForwardDiff
 gr()
 pyplot()
 
@@ -22,7 +23,7 @@ function sys(u, p, t)
     I2 = p[2]
     I3 = p[3]
     τ = F(t) #see how to deal with that
-    #τ = [0.0;0.0;0.0]
+    τ = [0.0;0.0;0.0]
     #@show(τ)
     I = Diagonal([I1; I2; I3])
     I_inv = Diagonal([1/I1; 1/I2; 1/I3])
@@ -30,15 +31,38 @@ function sys(u, p, t)
     q = u[1:4]/norm(u[1:4]) #quaternion at current step
     #controller
     q_ref = [0.0; 1.0; 0.0; 0.0]
-    kd = 10.0 #30.0
-    kp = -5 #20.0
+    kd = 30.0 #30.0
+    kp = -20.0 #20.0
     q_err = qmult(qconj(u[1:4]), q_ref) #perfect measurements
-    τ_c = -kd*u[5:7]-kp*q_err[2:4]
+    τ_c = -kd*(u[5:7])-kp*q_err[2:4]
     #τ_c = [0.0;0.0;0.0]
     #update
     du[5:7] = I_inv*(τ-cross(u[5:7], I*u[5:7])+τ_c)
     du[1:4] = 0.5*qmult(q, [0; ω])
     return du
+end
+a=1
+function sys!(u)
+    I1 = p[1] #assume principal axes
+    I2 = p[2]
+    I3 = p[3]
+    τ = [0.0;0.0;0.0]
+    #@show(τ)
+    I = Matrix(Diagonal([I1; I2; I3]))
+    I_inv = Matrix(Diagonal([1/I1; 1/I2; 1/I3]))
+    ω = u[5:7] #angular velocity at current step
+    q = u[1:4]/norm(u[1:4]) #quaternion at current step
+    #controller
+    q_ref = [0.0; 1.0; 0.0; 0.0]
+    kd = 30.0 #30.0
+    kp = -20 #20.0
+    q_err = qmult(qconj(u[1:4]), q_ref) #perfect measurements
+    τ_c = -kd*u[5:7]-kp*q_err[2:4]
+    #τ_c = [0.0;0.0;0.0]
+    #update
+    u[5:7] = I_inv*(τ-cross(u[5:7], I*u[5:7])+τ_c)
+    u[1:4] = 0.5*qmult(u[1:4], [0; u[5:7]])
+    return u
 end
 
 function uncertainty(Alist)
@@ -78,9 +102,6 @@ function rk4(f, y_0, p, dt, t_span)
     return T, y
 end
 
-S = [0.166023, -0.119774, -0.735595, 0.645748, -1.82736, -3.99131, -1878.94];
-T, Y= rk4(sys, S, p, 0.0001, [0.0;0.2])
-a=1
 #=time
 t_span = [0.0; 500.0]
 dt = 0.05
@@ -106,7 +127,9 @@ M = [-sin(θ) cos(θ) 0.0;
 Q = mat2quat(M)
 Q = qconj(Q)
 x_0 = [Q; 0.2; 0.1; 0.5]
-Q_0 = Matrix(Diagonal([0.01; 0.01; 0.2; 0.001; 0.001; 0.001])) #covariance matrix
+Q_0 = Matrix(Diagonal([0.05^2; 0.05^2; 0.05^2; 0.01^2; 0.01^2; 0.01^2])) #covariance matrix
+V = [0.0 1.0 0.0 0.0; 0.0 0.0 1.0 0.0; 0.0 0.0 0.0 1.0]
+E0 = Matrix(Diagonal([exp_quat(V'*[0.05^2; 0.05^2; 0.05^2]/2); 0.01^2; 0.01^2; 0.01^2]))
 
 A1 = inv(sqrt(Q_0)); #just for computation
 #A1 = Matrix(Diagonal([0.01;0.01;0.01;0.05;0.05;0.05]))
@@ -294,28 +317,42 @@ Alist, blist, centerlist, XX, WW = propagation(A1, b1)
 uncertainty(Alist)
 
 Plots.scatter(T, centerlist[1, :])
-Plots.scatter!(T, centerlist[5, :])
+Plots.scatter!(T, centerlist[2, :])
 Plots.scatter!(T, centerlist[3, :])
 Plots.scatter!(T, centerlist[6, :])
 
-norm(centerlist[1:3, 82])
 
 #ref trajectory
 t_span = [0.0;50.0]
-dt = 0.01
+dt = 0.5
 y_0 = x_0
 t_sim, y = rk4(sys, y_0, p, dt, t_span)
 
-norm(y[9000, 2:4])
-norm(y[8000, 2:4])
+function linearize(t_sim, y)
+    A = zeros(7, 7, length(t_sim))
+    for i=1:1:length(t_sim)
+        a = y[i, :]
+        A[:, :, i] = ForwardDiff.jacobian(u ->sys!(u), a)
+    end
+    return A
+end
 
-norm(y[10001, 2:4])
-inv(Alist[1:6, 1:6, 180])
+A_lin = linearize(t_sim, y)
 
-Alist[1:6, 1:6, 200]
-inv(Alist[1:6, 1:6, 40]*Alist[1:6, 1:6, 40])
+function linear_ellipse_prop(A_lin, E0)
+    E = zeros(7, 7, length(t_sim))
+    e = E0
+    for i=1:1:length(t_sim)
+        e1 = A_lin[:, :, i]*e*A_lin[:, :, i]'
+        E[:, :, i] =
+        e = e1
+    end
+    return E
+end
 
-E = [exp_quat(y[i, 1:4]) for i in 1:1:length(t_sim)]
+BB = linear_ellipse_prop(A_lin, E0)
+
+uncertainty(BB)
 
 #Plot 3D ellipsoid
 J = 60
@@ -399,7 +436,7 @@ plot!(T, [3.0*exp(-2*t) for t in T]) =#
 xlabel!("time [s]")
 ylabel!("angular vel [rad.s-1]")
 title!("Angular velocity component")
-Plots.savefig("rotation_example_quat_true_ellip_150s_notorque")
+Plots.savefig("rotation_example_50s_ang_vel")
 
 #Mosek (3.5)
 X1_mosek = [-0.443075 -0.524706 -0.643162 0.105911 -0.64506 0.0873887 -0.509194 -0.461816 -0.350786 -0.587458 -0.533744 -0.432474 -0.486224; 0.527601 0.62561 0.715278 -0.0753458 0.722468 -0.0582082 0.604931 0.552131 0.434497 0.683503 0.629424 0.521925 0.579388; 0.597624 0.467107 -0.251635 0.842631 -0.229813 0.843264 0.498228 0.570057 0.688599 0.343632 0.45749 0.605522 0.534933; 0.410082 0.339275 -0.106765 0.522569 -0.0955169 0.527144 0.355738 0.396122 0.462593 0.263882 0.331129 0.417018... 0.376487; -0.011734 0.0256657 0.145338 -0.131406 0.141777 -0.127845 0.0205452 -0.00661347 -0.0297794 0.0437111 0.0225832 -0.00865148 0.00696585; -0.126395 -0.17492 -0.426494 0.125179 -0.413803 0.112488 -0.164424 -0.13689 -0.0721017 -0.229213 -0.181852 -0.119462 -0.150657; 0.449384 0.524567 0.871482 0.102469 0.862256 0.111695 0.507791 0.46616 0.383007 0.590944 0.532852 0.441099 0.486976]
