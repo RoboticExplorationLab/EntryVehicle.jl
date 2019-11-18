@@ -26,7 +26,7 @@ red_material = MeshPhongMaterial(color=RGBA(1, 0, 0, 1.0))
 green_material = MeshPhongMaterial(color=RGBA(0, 1, 0, 1.0))
 
     #Points Trajectory
-sphere_small = HyperSphere(Point(0.0,0.0,0.0), 0.005)
+sphere_small = HyperSphere(Point(0.0,0.0,0.0), 0.01)
 
     #Plot Trajectory
 traj = vis["traj"]
@@ -37,23 +37,28 @@ N = length(t_sim)
 
     #Building Animation
 anim = MeshCat.Animation()
-for i = 1:200:N #change for speed of simulation I guess
+for i = 1:100:N #change for speed of simulation I guess
     MeshCat.atframe(anim,vis,i) do frame
         settransform!(frame["vehicle"], compose(Translation(Z[1:3, i].*5...),LinearMap(Quat(qmult(Z[4:7, i], QQ)...))))
     end
     setobject!(vis["traj"]["t$i"],sphere_small, green_material)
     settransform!(vis["traj"]["t$i"], Translation(Z[1, i]*5, Z[2, i]*5, Z[3, i]*5))
-    camera_translation = Translation(-0.5, 1.0, 1.0)
-    camera_rotation = LinearMap(AngleAxis(0.6*pi, 0.0, 0.0, 1.0))
+    camera_translation = Translation(-0.1, 0.5, 0.5)
+    camera_rotation = LinearMap(AngleAxis(-pi/6, 0.0, 0.0, 1.0))
     MeshCat.atframe(anim, vis, i) do frame
-        #setprop!(frame["/Cameras/default/rotated/<object>"], "zoom", 1.5)
-        #settransform!(frame["/Cameras/default"], Translation(5, 0, 0))
-        #settransform!(frame["/Cameras/default"], compose(compose(compose(Translation(Z[1:3, i].*10...), LinearMap(Quat(qmult(Z[4:7, i], QQ)...))), camera_translation), camera_rotation))
+        zoom_max = 2.0
+        zoom_min = 1.0
+        b = (zoom_min*N-zoom_max)/(N-1)
+        a = zoom_min-b
+        setprop!(frame["/Cameras/default/rotated/<object>"], "zoom", a*i+b)
+        settransform!(frame["/Cameras/default"], Translation(5, 0, 0))
+        settransform!(frame["/Cameras/default"], compose(compose(Translation(Z[1:3, i].*5...), camera_translation), camera_rotation))
     end
 
 end
 
 MeshCat.setanimation!(vis,anim)
-#settransform!(vis["/Cameras/default"], Translation(5, 0, 0))
+settransform!(vis["/Cameras/default"], compose(Translation(5, 0, 0), LinearMap(AngleAxis(pi/4, 0.0, 0.0, 1.0))))
+
 
 end

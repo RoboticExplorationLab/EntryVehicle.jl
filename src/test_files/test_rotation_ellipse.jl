@@ -23,7 +23,7 @@ function sys(u, p, t)
     I2 = p[2]
     I3 = p[3]
     τ = F(t) #see how to deal with that
-    τ = [0.0;0.0;0.0]
+    #τ = [0.0;0.0;0.0]
     #@show(τ)
     I = Diagonal([I1; I2; I3])
     I_inv = Diagonal([1/I1; 1/I2; 1/I3])
@@ -127,7 +127,7 @@ M = [-sin(θ) cos(θ) 0.0;
 Q = mat2quat(M)
 Q = qconj(Q)
 x_0 = [Q; 0.2; 0.1; 0.5]
-Q_0 = Matrix(Diagonal([0.05^2; 0.05^2; 0.05^2; 0.01^2; 0.01^2; 0.01^2])) #covariance matrix
+Q_0 = Matrix(Diagonal([0.01^2; 0.01^2; 0.01^2; 0.001^2; 0.001^2; 0.001^2])) #covariance matrix
 V = [0.0 1.0 0.0 0.0; 0.0 0.0 1.0 0.0; 0.0 0.0 0.0 1.0]
 E0 = Matrix(Diagonal([exp_quat(V'*[0.05^2; 0.05^2; 0.05^2]/2); 0.01^2; 0.01^2; 0.01^2]))
 
@@ -324,9 +324,11 @@ Plots.scatter!(T, centerlist[6, :])
 
 #ref trajectory
 t_span = [0.0;50.0]
-dt = 0.5
+dt = 0.01
 y_0 = x_0
 t_sim, y = rk4(sys, y_0, p, dt, t_span)
+
+t_sim, y1 = rk4(sys, y_0, p, dt, t_span)
 
 function linearize(t_sim, y)
     A = zeros(7, 7, length(t_sim))
@@ -398,6 +400,95 @@ Plots.plot!(ellipse[1, 2:end], ellipse[2, 2:end], ellipse[3, 2:end])
 scatter3d!(XX[5, :, J], XX[6, :, J], XX[7, :, J])
 
 
+#Presentation plots
+
+anim = @animate for j=1:1:100
+    Plots.plot(t_sim, y[:, 5], legend = false)
+    plot!(t_sim, y[:, 6])
+    plot!(t_sim, y[:, 7])
+    Plots.plot!(t_sim[1:50*j], y1[1:50*j, 5])
+    plot!(t_sim[1:50*j], y1[1:50*j, 6])
+    plot!(t_sim[1:50*j], y1[1:50*j, 7])
+    Plots.scatter!(T[1:j], centerlist[4, 1:j])
+    Plots.scatter!(T[1:j], centerlist[5, 1:j])
+    Plots.scatter!(T[1:j], centerlist[6, 1:j])
+    xlabel!("time [s]")
+    ylabel!("angular velocity [rad.s-1]")
+    title!("Angular velocity evolution step=$(j)")
+end
+gif(anim, "test_rigid_body.gif", fps = 3)
+
+
+anim = @animate for J=1:1:100
+    angles = 0.0:0.05:2*pi
+    angles2 = 0.0:0.05:2*pi
+    B = zeros(3)
+    b = [0.0;0.0;0.0]
+    #b = blist[4:6, J]
+    function job()
+          B = zeros(3)
+          for i = 1:1:length(angles)
+                for j = 1:1:length(angles2)
+                      B = hcat(B, [cos(angles[i])*sin(angles2[j]) - b[1]; sin(angles[i])*sin(angles2[j]) - b[2]; cos(angles2[j])-b[3]])
+                end
+          end
+          return B
+    end
+    B = job()
+    ellipse  = Alist[4:6, 4:6, J] \ B
+    if J == 1
+        Plots.plot(ellipse[1, 2:end], ellipse[2, 2:end], ellipse[3, 2:end], legend = false)
+    else
+        Plots.plot!(ellipse[1, 2:end], ellipse[2, 2:end], ellipse[3, 2:end], legend = false)
+    end
+    #scatter3d!(XX[5, :, J], XX[6, :, J], XX[7, :, J])
+    title!("Ellipsoid Velocity Space Projection step=$(J)")
+end
+gif(anim, "test_rigid_body_ellipsoid.gif", fps = 3)
+
+#axis-angle ellipsoids
+anim = @animate for J=1:1:100
+    angles = 0.0:0.05:2*pi
+    angles2 = 0.0:0.05:2*pi
+    B = zeros(3)
+    b = [0.0;0.0;0.0]
+    #b = blist[4:6, J]
+    function job()
+          B = zeros(3)
+          for i = 1:1:length(angles)
+                for j = 1:1:length(angles2)
+                      B = hcat(B, [cos(angles[i])*sin(angles2[j]) - b[1]; sin(angles[i])*sin(angles2[j]) - b[2]; cos(angles2[j])-b[3]])
+                end
+          end
+          return B
+    end
+    B = job()
+    ellipse  = Alist[1:3, 1:3, J] \ B
+    if J == 1
+        Plots.plot(ellipse[1, 2:end], ellipse[2, 2:end], ellipse[3, 2:end], legend = false)
+    else
+        Plots.plot!(ellipse[1, 2:end], ellipse[2, 2:end], ellipse[3, 2:end], legend = false)
+    end
+    #scatter3d!(XX[5, :, J], XX[6, :, J], XX[7, :, J])
+    title!("Ellipsoid Attitude Space Projection step=$(J)")
+end
+gif(anim, "test_rigid_body_ellipsoid_attitude.gif", fps = 3)
+
+#trace uncertainty animation
+
+U = [tr(Alist[:, :, j]) for j=1:1:length(Alist[1, 1, :])]
+
+anim = @animate for J=1:1:100
+    Plots.plot(U[1:J], legend = false)
+    Plots.xlabel!("time")
+    Plots.ylabel!("uncertainty matrix trace")
+end
+gif(anim, "test_rigid_body_trace.gif", fps = 3)
+
+
+
+
+
 using Plots
 using PyPlot
 gr()
@@ -415,7 +506,7 @@ plot!(t_sim, y[:, 2])
 plot!(t_sim, y[:, 3])
 plot!(t_sim, y[:, 4])
 
-Plots.plot!(t_sim, y[:, 5])
+Plots.plot(t_sim, y[:, 5])
 plot!(t_sim, y[:, 6])
 plot!(t_sim, y[:, 7])
 

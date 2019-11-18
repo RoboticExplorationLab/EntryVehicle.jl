@@ -418,7 +418,7 @@ function plot_traj_center(centerlist)
         X[j] = centerlist[1, j]#*Re
         Y[j] = centerlist[2, j]#*Re
     end
-    Plots.scatter(X, Y)
+    Plots.scatter!(X, Y)
 end
 
 
@@ -431,7 +431,7 @@ prob = ODEProblem(duffing!,u0,tspan, M)
 sol = DifferentialEquations.solve(prob, reltol=1e-10,abstol=1e-10)
 
 #plot the phase portrait of the system
-Plots.plot!(sol, vars=(1,2))
+Plots.plot(sol, vars=(1,2), legend = false)
 
 #Initialization
 u0 = [0.5; 0.2]
@@ -447,25 +447,25 @@ n = 2
 Alist, blist, centerlist, XX, E = prop2(A0, b0)
 
 plot_traj_center(centerlist)
-j = 101
-angles = 0.0:0.01:2*pi
-B = zeros(2, length(angles))
-for i = 1:1:length(angles)
-    B[:, i] = [cos(angles[i]) - blist[1, j], sin(angles[i]) - blist[2, j]]
+
+anim = @animate for j=1:5:100
+    angles = 0.0:0.01:2*pi
+    B = zeros(2, length(angles))
+    for i = 1:1:length(angles)
+        B[:, i] = [cos(angles[i]) - blist[1, j], sin(angles[i]) - blist[2, j]]
+    end
+    ellipse  = Alist[1:2, 1:2, j] \ B
+    Plots.plot(sol, vars=(1,2), legend = false)
+    plot!(ellipse[1, :], ellipse[2, :], legend = false)
+    scatter!([centerlist[1, j]],[centerlist[2, j]] )
+    scatter!(XX[1, :, j], XX[2, :, j])
+    plot_traj_center(centerlist)
+    #scatter!(E[1, :, j], E[2, :, j])
+    xlabel!("position")
+    ylabel!("velocity")
+    title!("Ellipse propagation step=$(j)")
 end
+gif(anim, "test.gif", fps = 1)
 
-ellipse  = Alist[1:2, 1:2, j] \ B
-plot!(ellipse[1, :], ellipse[2, :])
-scatter!([centerlist[1, j]],[centerlist[2, j]] )
-scatter!(XX[1, :, j], XX[2, :, j])
-scatter!(E[1, :, j], E[2, :, j])
 
-Plots.savefig("Duffing-20 sec- 0.2 step - all- ini 0.5, 0.2 - -1, 1, 0.2, 0.1, 1.0")
-
-#MOSEK tests
-using MosekTools
-using Mosek
-using JuMP
-
-model = Mosek.Optimizer()
-model = Model(with_optimizer(Mosek.Optimizer, QUIET=false, INTPNT_CO_TOL_DFEAS=1e-7))
+#Plots.savefig("Duffing-20 sec- 0.2 step - all- ini 0.5, 0.2 - -1, 1, 0.2, 0.1, 1.0")

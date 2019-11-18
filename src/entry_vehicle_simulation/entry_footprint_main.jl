@@ -68,8 +68,19 @@ end
 
 pos_geoc = convertt(pos_end)
 
+anim = @animate for j=1:1:36
+    Plots.scatter(pos_geoc[1:j, 2], pos_geoc[1:j, 3])
+    ylims!((10.0, 11.0))
+    xlims!((-0.15, 0.15))
+    xlabel!("longitude - degrees")
+    ylabel!("latitude - degrees")
+    title!("Landing footprint")
+end
+gif(anim, "footprint.gif", fps = 3)
+
 scatter(pos_geoc[:, 2], pos_geoc[:, 3])
 ylims!((10.0, 11.0))
 xlabel!("longitude - degrees")
 ylabel!("latitude - degrees")
 title!("Landing footprint")
+savefig("footprint_geoc")

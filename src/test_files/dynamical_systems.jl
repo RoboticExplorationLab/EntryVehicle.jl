@@ -234,3 +234,80 @@ W = F.vectors
 W*Diagonal(V)*inv(W) #okay that gives A back (almost)
 
 inv(W)
+
+#Dynamical System - Presentation RexLab
+using LinearAlgebra
+using DifferentialEquations
+using Plots
+using Random
+
+#using Discrete case here
+function S(u1, t)
+    #u is between 0 and 1
+    u2 = 4*u1*(1-u1)
+    return u2
+end
+
+function prop(u0, T)
+    U = zeros(T)
+    U[1] = u0
+    u1 = u0
+    for i=2:1:T
+        u2 = S(u1, i)
+        U[i] = u2
+        u1 = u2
+    end
+    return U
+end
+
+function bins(U, n, T)
+    F = zeros(n)
+    for i=1:1:T
+        u = U[i]
+        for j=1:1:n
+            if u>=(j-1)/n && u<j/n
+                F[j] +=1
+            end
+        end
+    end
+    return F
+end
+
+u0 = 0.3 #initial value
+T = 5000 #nbr discrete steps
+n = 20
+U = prop(u0, T)
+plot(U)
+title!("Trajectory")
+xlabel!("time")
+ylabel!("position")
+F = bins(U, n, T)
+histogram(U, bins=20)
+xlabel!("position")
+ylabel!("density")
+title!("state density")
+savefig("dens")
+
+#now let's say we have uncertainty on initial condition
+rng = MersenneTwister(1234);
+U0 = rand!(rng, zeros(5000))
+T = 50
+
+function prop_uncertainty(U0, T)
+    UU = zeros(T, length(U0))
+    for i=1:1:length(U0)
+        UU[:, i] = prop(U0[i], T)
+    end
+    return UU
+end
+
+UU = prop_uncertainty(U0, T)
+histogram(UU[20, :], bins=20)
+
+anim = @animate for i=1:10
+    histogram(UU[i, :], bins=20)
+    xlabel!("position")
+    ylabel!("density")
+    title!("Density evolution n=$(i)")
+end
+gif(anim, "test.gif", fps = 1)

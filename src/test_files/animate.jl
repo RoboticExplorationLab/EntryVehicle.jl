@@ -1,4 +1,4 @@
-_path = "/home/user/Documents/Julia_Code_Remy/animation_no_damping"
+_path = "C:\\Users\\33645\\Downloads"
 
 using FileIO
 using ImageMagick

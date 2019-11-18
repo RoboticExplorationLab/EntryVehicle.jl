@@ -54,8 +54,13 @@ end
 
 ellipse  = A \ B
 
-scatter(X[1,:], X[2,:])
+scatter(X[1,:], X[2,:], legend =false)
 plot!(ellipse[1, :], ellipse[2, :])
+xlabel!("x")
+ylabel!("y")
+title!("Minimum Volume Covering Ellipse")
+savefig("Min Ellipsoid")
+
 
 #Comparison with SCS solver
 A = Semidefinite(n)

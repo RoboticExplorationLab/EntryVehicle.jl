@@ -10,7 +10,7 @@
 #Plot functions
 
 function plot_traj(X)
-    Plots.plot(X[1, :]*Re, X[2, :]*Re, label="Spacecraft Trajectory")
+    Plots.plot!(X[1, :]*Re, X[2, :]*Re, label="Spacecraft Trajectory")
     xlabel!("X [km]")
     ylabel!("Y [km]")
     title!("Spacecraft Trajectory in MCI - XY projection")
