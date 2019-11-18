@@ -262,6 +262,7 @@ table_CF, table_Cτ = table_aero_spherecone(δ, r_min, r_cone, r_G)
 t_sim_nom, Z = integration2(dyna_coeffoff_inplace!, x0, Δt)
 
 plot_traj(Z)
+Plots.savefig("100s_ellipse_entry")
 
 a=1
 
@@ -500,23 +501,35 @@ maximum(centerlist[1, :])
 minimum(centerlist[1, :])
 
 #Plot 3D ellipsoid
-J = 101
-angles = 0.0:0.05:2*pi
-angles2 = 0.0:0.05:2*pi
-B = zeros(3)
-#b = [0.0;0.0;0.0]
-b = blist[1:3, J]
-function job()
-      B = zeros(3)
-      for i = 1:1:length(angles)
-            for j = 1:1:length(angles2)
-                  B = hcat(B, [cos(angles[i])*sin(angles2[j]) - b[1]; sin(angles[i])*sin(angles2[j]) - b[2]; cos(angles2[j])-b[3]])
-            end
-      end
-      return B
-end
-B = job()
+anim = @animate for J=1:5:100
+    angles = 0.0:0.05:2*pi
+    angles2 = 0.0:0.05:2*pi
+    B = zeros(3)
+    b = [0.0;0.0;0.0]
+    #b = blist[1:3, J]
+    function job()
+          B = zeros(3)
+          for i = 1:1:length(angles)
+                for j = 1:1:length(angles2)
+                      B = hcat(B, [cos(angles[i])*sin(angles2[j]) - b[1]; sin(angles[i])*sin(angles2[j]) - b[2]; cos(angles2[j])-b[3]])
+                end
+          end
+          return B
+    end
+    B = job()
 
-ellipse  = Alist[1:3, 1:3, J] \ B
-Plots.plot!(ellipse[1, 2:end], ellipse[2, 2:end], ellipse[3, 2:end])
+    ellipse  = Alist[10:12, 10:12, J] \ B
+    if J ==1
+        Plots.plot(ellipse[1, 2:end], ellipse[2, 2:end], ellipse[3, 2:end], legend =false)
+    else
+        Plots.plot!(ellipse[1, 2:end], ellipse[2, 2:end], ellipse[3, 2:end], legend =false)
+    end
+    #xlims!((-0.03, 0.03))
+    ylims!((-0.0004, 0.0004))
+    #zlims!((-0.02, 0.02))
+    title!("Ellipsoid ang vel step=$(J)")
+end
+gif(anim, "plot_ellipse_ang_vel.gif", fps = 4)
+
+
 scatter3d!(WW[1, :, J], WW[2, :, J], WW[3, :, J], markersize=10.0)
