@@ -59,3 +59,21 @@ function mat2quat(M)
     q = q/norm(q)
     return q
 end
+
+function log_quat(q)
+    if norm(q[2:4]) != 0.0
+        Q = [0.0;acos(q[1]/norm(q))*(q[2:4]/(norm(q[2:4])))]
+    else
+        Q = [0.0; 0.0; 0.0; 0.0]
+    end
+    return Q
+end
+
+function exp_quat(q) #v is a rotation vector
+    if norm(q[2:4]) != 0.0
+        Q = exp(q[1])*[cos(norm(q[2:4])); (q[2:4]/norm(q[2:4]))*sin(norm(q[2:4]))]
+    else
+        Q = [1.0; 0.0; 0.0; 0.0]
+    end
+    return Q
+end

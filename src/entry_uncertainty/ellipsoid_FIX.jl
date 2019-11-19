@@ -262,6 +262,8 @@ table_CF, table_Cτ = table_aero_spherecone(δ, r_min, r_cone, r_G)
 t_sim_nom, Z = integration2(dyna_coeffoff_inplace!, x0, Δt)
 
 plot_traj(Z)
+plot_altitude(t_sim_nom, Z)
+plot_ang_vel(Z)
 Plots.savefig("100s_ellipse_entry")
 
 a=1
@@ -381,7 +383,8 @@ function prop_points_last(X, dt, u, w)
     m = length(X[1, :])
     Xnew = zeros(size(X))
     for i=1:1:m
-        t_sim, Z = rk4(dyna_coeffoff, X[:, i], u, 0.001, [0.0, dt])
+        t_sim, Z = rk4(dyna_coeffoff, X[:, i], u, 0.001, [0.0, dt])#integration2(dyna_coeffoff_inplace!, X[:, i], dt)
+        #rk4(dyna_coeffoff, X[:, i], u, 0.001, [0.0, dt])
         Xnew[:, i] = Z[end, :]
     end
     return Xnew
@@ -414,7 +417,7 @@ A1 = inv(sqrt(Q0))
 b1 = -A1*x0_12
 
 Δt = 100.0 #length simulation
-dt = .5
+dt = 1.0
 T = 0.0:dt:Δt
 #T = t_sim_nom
 
@@ -495,10 +498,12 @@ end
 plot_traj_center(centerlist)
 uncertainty(Alist)
 
-Plots.plot(centerlist[1, :])
+Plots.plot(centerlist[2, :])
 
 maximum(centerlist[1, :])
 minimum(centerlist[1, :])
+
+a=1
 
 #Plot 3D ellipsoid
 anim = @animate for J=1:5:100

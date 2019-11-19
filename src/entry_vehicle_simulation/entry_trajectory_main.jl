@@ -44,8 +44,8 @@ M = [-sin(θ) cos(θ) 0.0;
 Q = mat2quat(M) #CHANGE THAT
 Q = qconj(Q)
 #x0 = [(3389.5+125)/Re, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
-x0 = [(3389.5+125)/Re, 0.0, 0.0, Q[1], Q[2], Q[3], Q[4], 0.0, 3.0, 0.0, 0.0, 0.0, 0.0]
-Δt = 500 #length simulation
+x0 = [(3389.5+125)/Re, 0.0, 0.0, Q[1], Q[2], Q[3], Q[4], 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
+Δt = 300 #length simulation
 
 ####################################
 #####Dynamics - Integration#########
@@ -66,6 +66,7 @@ end
 t_sim, Z = integration(dyn, x0, Δt) #dyn or dyna_coeffoff_inplace
 #can change to get integration or integration 2 here
 #t_sim, Z = integration2(dyna_coeffoff_inplace!, x0, Δt) #Marsgram and stuff
+t_sim, Z = integration2(dyna_coeffoff_inplace!, x0, Δt)
 ####################################
 ######Visualization - MeshCat#######
 ####################################

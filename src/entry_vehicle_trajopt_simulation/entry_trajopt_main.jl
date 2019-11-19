@@ -12,6 +12,7 @@ using ODE
 using DifferentialEquations
 using Plots
 pyplot()
+gr()
 
 include("aerodynamic_coeff.jl")
 include("quaternions.jl")
@@ -31,7 +32,7 @@ entry_vehicle_model = Model(dyna!, n, m)
 model = entry_vehicle_model
 n = model.n; m = model.m
 model_d = rk4(model)
-model_de = discretize_model(model,:DiffEq_ode78) #can take y solver from DiffEq
+model_de = discretize_model(model,:DiffEq_ode78) #can take anyy solver from DiffEq
 ####################################
 ##########Initial State#############
 ####################################
@@ -79,7 +80,7 @@ xf[8:10] = [-0.3218613947994733; 0.4350535668863166; 0.0]
 ##########Cost Function#############
 ####################################
 
-N = 201
+N = 50
 Q = Diagonal(0.1I,n)
 R = Diagonal(0.1I,m)
 Qf = Diagonal(100.0I,n) #Put float everywhere
@@ -90,7 +91,7 @@ obj = LQRObjective(Q, R, Qf, xf, N)
 ############Constraints#############
 ####################################
 
-bnd = BoundConstraint(n, m, u_min = -0.1, u_max = 0.1)
+bnd = BoundConstraint(n, m, u_min = -0.5, u_max = 0.5)
 constraints = [bnd] #only bounds constraints on my system, put the []
 bnd isa ConstraintSet
 constraints isa ConstraintSet
@@ -122,13 +123,13 @@ opts_altro = ALTROSolverOptions{T}(verbose=verbose,
 #ADD INITIAL SEQUENCE OF CONTROL
 
 t0 = 0
-tf = 300.0
-prob = TrajectoryOptimization.Problem(model_de, obj, x0 = x0, xf=xf, constraints = CON, N=N, tf=tf)
+tf = 200.0
+prob = TrajectoryOptimization.Problem(model_d, obj, x0 = x0, xf=xf, constraints = CON, N=N, tf=tf)
 prob.dt
 rollout!(prob)
 plot(prob.X)
 #savefig("state")
-#prob = Problem(model, obj, x0 = x0, integration=:rk4, N=N, tf=tf)
+#prob = Problem(model, obj, x0 = x0, integration=:rk4,constraints = CON, N=N, tf=tf)
 TrajectoryOptimization.solve!(prob, opts_al)
 
 ####################################
@@ -142,14 +143,24 @@ U = prob.U
 ###########Visualization############
 ####################################
 
+function conv(Z)
+    ZZ = zeros(13, length(Z))
+    for i = 1:1:length(Z)
+        ZZ[:, i] = Z[i]
+    end
+    return ZZ
+end
+
+ZZ = conv(Z)
+
 t_sim = t0:prob.dt:tf
 QQ = [0.707107;-0.707107; -0.0; -0.0] #Q_image2model
 
-animate_traj(t_sim, Z)
+animate_traj(t_sim, ZZ)
 
-plot(prob.U)
+plot(prob.U, legend = false)
 title!("Control Sequence [N.m]")
 xlabel!("time [s]")
-#savefig("control_sequence")
+#savefig("control_sequence_with_bounds_example")
 
 plot(prob.X)
