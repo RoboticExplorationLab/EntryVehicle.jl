@@ -30,7 +30,7 @@ function integration2(fnc, x0, Δt)
     Re = 3389.5
     tspan = (0.0, Δt)
     prob = ODEProblem(fnc, x0, tspan)
-    sol = solve(prob, points=:specified, callback = cb)#reltol=1e-10,abstol=1e-10) #Tsit5(), Rodas4(), AutoTsit5(Rosenbrock23())
+    sol = DifferentialEquations.solve(prob, points=:specified, callback = cb) #save_everystep=false,dense=false)#reltol=1e-10,abstol=1e-10) #Tsit5(), Rodas4(), AutoTsit5(Rosenbrock23())
     n = 13 #number of states
     t_sim = sol.t
     z_sim = sol.u

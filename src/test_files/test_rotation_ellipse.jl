@@ -309,8 +309,8 @@ F(t) = rand!(D, τ)
 #p = [100.0; 110.0; 300.0; -0.1319; 0.08; 0.0455]
 p = [100.0; 110.0; 300.0]
 
-dt = 0.5
-T = 0.0:dt:50.0
+dt = 1.0
+T = 0.0:dt:200.0
 Alist, blist, centerlist, XX, WW = propagation(A1, b1)
 
 #plot uncertainty evolution (trace)

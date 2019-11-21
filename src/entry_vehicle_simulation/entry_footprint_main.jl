@@ -11,6 +11,9 @@ using HCubature
 using StaticArrays
 using WebIO
 using Statistics
+using DifferentialEquations
+using Plots
+gr()
 
 #Main file for footprint drawing using MeshCat
 
@@ -20,6 +23,7 @@ include("entry_model.jl")
 include("integration.jl")
 include("footprint.jl")
 include("animate_footprint.jl")
+include("traj_plots.jl")
 
 ##########################
 ###### Integration #######
@@ -27,19 +31,29 @@ include("animate_footprint.jl")
 
 #PUT INITIAL POINT IN PARAMETER HERE
 Re = 3389.5 #3396.2 [km] Radius of the planet
-Δt = 500.0 #seconds - length simulation
+Δt = 300.0 #seconds - length simulation
 
 function dyn(t, x)
     return dyna(t, x, [0.0]) # torques input should be in km^2*kg*s^(-2) so should be small values
 end
 
+δ = 70*pi/180
+r_cone = 1.3
+r_min = 0.2
+r_G = [0.2; 0.0; 0.3]
+table_CF, table_Cτ = table_aero_spherecone(δ, r_min, r_cone, r_G)
+
+
 pos_end, state_end = footprint()
+trajs_all = footprint_all()
 
 ##########################
 ###### Visualization #####
 ##########################
 
 animate_footprint(pos_end)
+
+plot_traj(trajs_all[:, :, 1])
 
 #=
 mean(pos_end[:, 1])

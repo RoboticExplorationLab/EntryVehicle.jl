@@ -304,15 +304,16 @@ function dyna_coeffoff_inplace!(du, u, p, t) #For DiffEq
      J2*r[2]/norm(r)^7*(6*r[3]-1.5*(r[1]^2+r[2]^2));
      J2*r[3]/norm(r)^7*(3*r[3]-4.5*(r[1]^2+r[2]^2))]
 
+     #=
      q_ref = Q
      kd = 10000.0 #30.0
      kp = -0.01 #-20.0
      q_err = qmult(qconj(q), q_ref) #perfect measurements
-     τ_c = -kd*(ω)-kp*q_err[2:4]
+     τ_c = -kd*(ω)-kp*q_err[2:4] =#
 
-    Cp = 1.0 #pitch damping coefficient
+    Cp = 0.5 #pitch damping coefficient
     F_total_eci = F_grav_eci + F_aero_eci + F_J2_eci
-    τ_total_body = τ_aero_body - Cp*[ω[1:2]; 0.0] + [0.0;0.0;0.0] + τ_c #computed at COM #[0.0;0.0;0.0]
+    τ_total_body = τ_aero_body - Cp*[ω[1:2]; 0.0] + [0.0;0.0;0.0] #+ τ_c #computed at COM #[0.0;0.0;0.0]
 
     du[1:3] = v/Re
     du[4:7] = 0.5*qmult(q, [0; ω])

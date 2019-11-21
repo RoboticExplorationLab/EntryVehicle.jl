@@ -37,15 +37,16 @@ include("marsgram_wrapper.jl")
 ####################################
 
 Re = 3389.5
-θ = 91*pi/180 #rotation angle about z-axis
+θ = 180.0*pi/180 #rotation angle about z-axis
 M = [-sin(θ) cos(θ) 0.0;
      0.0 0.0 1.0;
      cos(θ) sin(θ) 0.0]
 Q = mat2quat(M) #CHANGE THAT
 Q = qconj(Q)
 #x0 = [(3389.5+125)/Re, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
-x0 = [(3389.5+125)/Re, 0.0, 0.0, Q[1], Q[2], Q[3], Q[4], 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
-Δt = 300 #length simulation
+x0 = [(3389.5+125)/Re, 0.0, 0.0, Q[1], Q[2], Q[3], Q[4], 0.0, 3.0, 0.0, 0.0, 0.0, 0.0]
+Δt = 500 #length simulation
+
 
 ####################################
 #####Dynamics - Integration#########
@@ -85,7 +86,28 @@ animate_traj(t_sim, Z)
 #####State Variables - 2D Plots#####
 ####################################
 
-plot_traj(Z)
+Plots.plot(Z[1, :], Z[2, :],legend =false)
+ylims!((0.38, 0.405))
+xlims!((0.90, 0.95))
+title!("Trajectory Sampling - Equatorial Orbits")
+xlabel!("X/R")
+ylabel!("Y/R")
+
+angles = 0.0:0.01:2*pi
+A = [1.0 0.0; 0.0 1.0]
+b = [0.0;0.0]
+B = zeros(2, length(angles))
+for i = 1:1:length(angles)
+      B[:, i] = [cos(angles[i]) - b[1], sin(angles[i]) - b[2]]
+end
+
+Plots.savefig("sampling_3km.s-1")
+
+ellipse  = A \ B
+Plots.plot(ellipse[1, :], ellipse[2, :])
+
+
+plot_traj2(Z)
 #Plots.savefig("1")
 plot_altitude(Z, t_sim)
 #Plots.savefig("2")

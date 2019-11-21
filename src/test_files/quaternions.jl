@@ -74,6 +74,7 @@ function exp_quat(q) #v is a rotation vector
         Q = exp(q[1])*[cos(norm(q[2:4])); (q[2:4]/norm(q[2:4]))*sin(norm(q[2:4]))]
     else
         Q = [1.0; 0.0; 0.0; 0.0]
+        Q = [1.0-0.5*q[2:4]'*q[2:4]'; q[2:4]]
     end
     return Q
 end

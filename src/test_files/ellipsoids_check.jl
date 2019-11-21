@@ -11,30 +11,32 @@ using JuMP
 using ECOS #does not solver SDPs
 using MathProgBase
 using Gurobi #works properly but
+using MathOptInterface
+using MosekTools
 pyplot()
 gr()
 
 function sys!(du,u,p,t)
  du[1] = u[2]
- du[2] = -u[1] +u[1]^2
+ du[2] = -u[1]+u[1]^2
 end
 
 u0 = [0.1;0.13]
-tspan = (0.0,11.0)
+tspan = (0.0,400.0)
 prob = ODEProblem(sys!,u0,tspan)
-sol = solve(prob, reltol=1e-10,abstol=1e-10)
+sol = DifferentialEquations.solve(prob, reltol=1e-10,abstol=1e-10)
 
-plot!(sol, vars=(1,2))
+plot(sol, vars=(1,2))
 
 
 #initialization
-u0 = [0.6;0.2]
-Q0 = Matrix(Diagonal([0.01, 0.01]))
+u0 = [0.1;0.13]
+Q0 = Matrix(Diagonal([0.0001, 0.0001]))
 A0 = inv(sqrt(Q0)) #matrix at t=0.0
 b0 = -A0*u0 #center at t=0.0
 
-Δt = 3.0 #length simulation
-dt = 0.05
+Δt = 3000.0 #length simulation
+dt = 1.0
 T = 0.0:dt:Δt
 n = 2
 
@@ -102,7 +104,7 @@ function prop(A1, b1)
         @show(t)
         X1 = ellipse2points(A1, b1) #return a set of points
         X2 = prop_points_continuous(X1, dt) #prop_points(X1, t, dt, u, w)
-        A2, b2 = points2ellipse(X2)
+        A2, b2 = points2ellipse_mosek(X2)
         blist[:, i] = b1
         Alist[:, :, i] = A1
         centerlist[:, i] = -inv(A1)*b1
@@ -145,12 +147,11 @@ function prop_points_continuous(X, dt)
     Xnew = zeros(size(X))
     for i=1:1:m
         prob = ODEProblem(sys!, X[:, i], tspan)
-        sol = solve(prob, AutoTsit5(Rosenbrock23()), reltol=1e-10,abstol=1e-10)
+        sol = DifferentialEquations.solve(prob, AutoTsit5(Rosenbrock23()), reltol=1e-10,abstol=1e-10)
         Xnew[:, i] = sol.u[end]
     end
     return Xnew
 end
-
 
 function prop2(A1, b1)
     blist = zeros(n, length(T))
@@ -164,7 +165,7 @@ function prop2(A1, b1)
         @show(t)
         X1 = ellipse2points2(A1, b1) #return a set of points (big set here)
         X2 = prop_points_continuous(X1, dt) #prop_points(X1, t, dt, u, w)
-        A2, b2 = points2ellipse(X2)
+        A2, b2 = points2ellipse_mosek(X2)
         blist[:, i] = b1
         Alist[:, :, i] = A1
         centerlist[:, i] = -inv(A1)*b1
@@ -195,7 +196,7 @@ Alist, blist, centerlist, XX, E = prop2(A0, b0)
 
 
 plot_traj_center(centerlist)
-j = 1001
+j = 1
 angles = 0.0:0.01:2*pi
 B = zeros(2, length(angles))
 for i = 1:1:length(angles)
@@ -209,7 +210,21 @@ scatter!(XX[1, :, j], XX[2, :, j])
 #title!("simple pendulum - no damping")
 #xlabel!("x")
 #ylabel!("ẋ")
-Plots.savefig("duffing - 1 sec - 0.001 step - interior points ")
+#Plots.savefig("duffing - 1 sec - 0.001 step - interior points ")
+
+function uncertainty(Alist)
+    t = length(Alist[1, 1, :])
+    U = zeros(t)
+    for i=1:1:t
+        U[i] = tr(inv(Alist[:, :, i]))
+    end
+    Plots.plot(U)
+    Plots.xlabel!("time")
+    Plots.ylabel!("uncertainty matrix trace")
+end
+
+uncertainty(Alist)
+Alist[:,:,170]
 
 
 ###############################
@@ -301,7 +316,7 @@ Alist, blist, centerlist, XX, E = prop2(A0, b0)
 
 
 plot_traj_center(centerlist)
-j = 80
+j = 1
 angles = 0.0:0.01:2*pi
 B = zeros(2, length(angles))
 for i = 1:1:length(angles)
@@ -360,20 +375,24 @@ function prop_points_continuous(X, dt, t)
     return Xnew
 end
 
+a=1
+
 
 function prop2(A1, b1)
     blist = zeros(n, length(T))
     Alist = zeros(n, n, length(T))
     centerlist = zeros(n, length(T))
     angles = 0.0:0.2:2*pi
-    XX = zeros(n, length(angles), length(T))
-    E = zeros(n, length(angles), length(T)) #store the propagation of the ellipses
+    #XX = zeros(n, length(angles), length(T))
+    #E = zeros(n, length(angles), length(T)) #store the propagation of the ellipses
+    XX = zeros(n, 13, length(T))
+    E = zeros(n, 13, length(T))
     for i=1:1:length(T)
         t = T[i]
         @show(t)
-        X1 = ellipse2points2(A1, b1) #return a set of points (big set here)
+        X1 = ellipse2points(A1, b1) #return a set of points (big set here)
         X2 = prop_points_continuous(X1, dt, t) #prop_points(X1, t, dt, u, w)
-        A2, b2 = points2ellipse(X2)
+        A2, b2 = points2ellipse_mosek(X2)
         blist[:, i] = b1
         Alist[:, :, i] = A1
         centerlist[:, i] = -inv(A1)*b1
@@ -411,6 +430,30 @@ function points2ellipse(X)
     return A, b
 end
 
+a=1
+
+function points2ellipse_mosek(X)
+    n, m = size(X);
+    s = MathOptInterface.LogDetConeTriangle(n)
+    model = Model(with_optimizer(Mosek.Optimizer, MSK_DPAR_INTPNT_CO_TOL_DFEAS=10^(-9), MSK_DPAR_INTPNT_CO_TOL_PFEAS=10^(-9), MSK_DPAR_INTPNT_CO_TOL_MU_RED = 10^(-10))) #MSK_DPAR_INTPNT_CO_TOL_INFEAS=10^(-12), MSK_IPAR_INTPNT_MAX_ITERATIONS=1000))
+    @variable(model, A[1:n, 1:n], PSD)
+    @variable(model, b[1:n])
+    @variable(model , t)
+    @objective(model, Max, t)
+    @constraint(model, con[i = 1:m], [1.0; A*X[:, i]+b] in SecondOrderCone())
+    V = [A[i, j] for j in 1:1:n for i in 1:1:j] #vectorize form of the matrix
+    @constraint(model, [t;1.0;V] in s)
+    #@show(con)
+    #MathOptInterface.TimeLimitSec() = 0.5
+    JuMP.optimize!(model)
+    a = JuMP.termination_status(model)
+    @show(a)
+    @show(objective_value(model))
+    A = JuMP.value.(A)
+    b = JuMP.value.(b)
+    return A, b
+end
+
 function plot_traj_center(centerlist)
     X = zeros(length(T))
     Y = zeros(length(T))
@@ -418,54 +461,156 @@ function plot_traj_center(centerlist)
         X[j] = centerlist[1, j]#*Re
         Y[j] = centerlist[2, j]#*Re
     end
-    Plots.scatter!(X, Y)
+    Plots.scatter(X, Y)
 end
 
 
 #PHASE PORTRAIT AND STUFF
-u0 = [0.5;0.2]
-tspan = (0.0,20.0)
+u0 = [0.1; 10.0]
+tspan = (0.0,100.0)
 p = [-1.0; 1.0; 0.2; 0.1; 1.0]
 M  = t->cos(t)
 prob = ODEProblem(duffing!,u0,tspan, M)
 sol = DifferentialEquations.solve(prob, reltol=1e-10,abstol=1e-10)
 
 #plot the phase portrait of the system
-Plots.plot(sol, vars=(1,2), legend = false)
+Plots.plot!(sol, vars=(1,2), legend = false)
+sol.u[end]
 
 #Initialization
-u0 = [0.5; 0.2]
-Q0 = Matrix(Diagonal([0.001, 0.002]))
+u0 = [0.1; 10.0]
+Q0 = Matrix(Diagonal([0.01, 0.01]))
 A0 = inv(sqrt(Q0)) #matrix at t=0.0
 b0 = -A0*u0 #center at t=0.0
 
-Δt = 20.0 #length simulation
-dt = 0.2
+Δt = 100.0 #length simulation
+dt = 1.0
 T = 0.0:dt:Δt
 n = 2
 
 Alist, blist, centerlist, XX, E = prop2(A0, b0)
 
 plot_traj_center(centerlist)
+uncertainty(Alist)
+savefig("MC2")
 
-anim = @animate for j=1:5:100
+a=1
+
+anim = @animate for j=1:500:5000
     angles = 0.0:0.01:2*pi
     B = zeros(2, length(angles))
     for i = 1:1:length(angles)
-        B[:, i] = [cos(angles[i]) - blist[1, j], sin(angles[i]) - blist[2, j]]
+        #B[:, i] = [cos(angles[i]) - blist[1, j], sin(angles[i]) - blist[2, j]]
+        B[:, i] = [cos(angles[i]), sin(angles[i])]
     end
     ellipse  = Alist[1:2, 1:2, j] \ B
-    Plots.plot(sol, vars=(1,2), legend = false)
-    plot!(ellipse[1, :], ellipse[2, :], legend = false)
-    scatter!([centerlist[1, j]],[centerlist[2, j]] )
-    scatter!(XX[1, :, j], XX[2, :, j])
-    plot_traj_center(centerlist)
+    #Plots.plot(sol, vars=(1,2), legend = false)
+    plot(ellipse[1, :], ellipse[2, :], legend = false)
+    #xlims!(-0.01, 0.01)
+    #ylims!(-0.01, 0.01)
+    #scatter!([centerlist[1, j]],[centerlist[2, j]] )
+    #scatter!(XX[1, :, j], XX[2, :, j])
+    #plot_traj_center(centerlist)
     #scatter!(E[1, :, j], E[2, :, j])
-    xlabel!("position")
-    ylabel!("velocity")
+    #xlabel!("position")
+    #ylabel!("velocity")
     title!("Ellipse propagation step=$(j)")
 end
-gif(anim, "test.gif", fps = 1)
+gif(anim, "test.gif", fps = 2)
 
 
-#Plots.savefig("Duffing-20 sec- 0.2 step - all- ini 0.5, 0.2 - -1, 1, 0.2, 0.1, 1.0")
+#Let's do MC on these systems
+using Distributions
+using Random
+
+u0 = [0.1; 10.0]
+σ_x = 0.1 #actual value of one branch of the semi-axe
+σ_y = 0.1
+Q0 = Matrix(Diagonal([σ_x^2, σ_y^2]))
+A0 = inv(sqrt(Q0)) #matrix at t=0.0
+b0 = -A0*u0 #center at t=0.0
+
+Δt = 100.0 #length simulation
+dt = 1.0
+T = 0.0:dt:Δt
+n = 2
+
+D1 = Uniform(u0[1]-σ_x, u0[1]+σ_x)
+D2 = Uniform(u0[2]-σ_y, u0[2]+σ_y)
+x1 = zeros(1, 1000)
+x2 = zeros(1, 1000)
+rand!(D1, x1)
+rand!(D2, x2)
+x = vcat(x1, x2)
+
+function prop_MC(x)
+    n, m = size(x)
+    saveAT = 1.0
+    tspan = (0.0,1000.0)
+    traj = zeros(n, 1001, m)
+    for i=1:1:m
+        Z = zeros(n, 1001)
+        u0 = x[:, i]
+        #p = [-1.0; 1.0; 0.2; 0.1; 1.0]
+        M  = t->cos(t)
+        prob = ODEProblem(duffing!,u0,tspan,M)
+        sol = DifferentialEquations.solve(prob, saveat = saveAT, abstol = 1e-9, reltol = 1e-9)
+        for j =1:1:1001
+            Z[:, j] = (sol.u)[j]
+        end
+        traj[:, :, i] = Z
+    end
+    return traj
+end
+
+traj = prop_MC(x)
+
+Plots.scatter!(traj[1, end, :], traj[2, end, :])
+Plots.scatter!(traj[1, 1, :], traj[2, 1, :])
+
+traj[1, 2, :]
+traj[2, 2, :]
+
+
+#check ellipsoid fit after propagation of the points
+j = 2
+angles = 0.0:0.01:2*pi
+B = zeros(2, length(angles))
+for i = 1:1:length(angles)
+    B[:, i] = [cos(angles[i]) - blist[1, j+1], sin(angles[i]) - blist[2, j+1]]
+end
+
+ellipse  = Alist[1:2, 1:2, j+1] \ B
+scatter(E[1, :, j], E[2, :, j])
+plot!(ellipse[1, :], ellipse[2, :])
+scatter!([centerlist[1, j+1]],[centerlist[2, j+1]])
+j = 5
+scatter(traj[1, j, :], traj[2, j, :])
+scatter!(XX[1, :, j], XX[2, :, j])
+
+#Ellipse fitting at different steps
+anim = @animate for j=1:1:100
+    scatter(E[1, :, j], E[2, :, j], legend = false)
+    angles = 0.0:0.01:2*pi
+    B = zeros(2, length(angles))
+    for i = 1:1:length(angles)
+        B[:, i] = [cos(angles[i]) - blist[1, j+1], sin(angles[i]) - blist[2, j+1]]
+    end
+    ellipse  = Alist[1:2, 1:2, j+1] \ B
+    plot!(ellipse[1, :], ellipse[2, :])
+    title!("Ellipse fitting t=$(j)")
+    xlabel!("X")
+    ylabel!("̇X")
+end
+gif(anim, "other_scheme_more_uncer.gif", fps = 1)
+
+#Ellipse MC comparison
+anim = @animate for j=2:1:101
+    scatter(traj[1, j, :], traj[2, j, :], legend = false)
+    scatter!(XX[1, :, j], XX[2, :, j])
+    #plot!(sol, vars=(1, 2))
+    title!("Ellipse propagation vs MC step =$(j)")
+    xlabel!("X")
+    ylabel!("̇X")
+end
+gif(anim, "prop_vc_MC_other_sampling_scheme_more_uncer_no_traj.gif", fps = 1)
