@@ -302,6 +302,41 @@ function ellipse2points(A, b, x0)
     return points3, W #return 2n+1 points
 end
 
+function ellipse2points2(A, b, x0)
+    #A is the matrix we obtain from the previous step
+    #x is the center of the ellipsoid in 7 dimensions
+    #y is the center of the ellipsoid in 6 dimensions
+    n = length(b)
+    V = [0.0 1.0 0.0 0.0; 0.0 0.0 1.0 0.0; 0.0 0.0 0.0 1.0]
+    points2 = zeros(n, 6*n)
+    points3 = zeros(n+1, 6*n+1)
+    M = -inv(A)*b
+    C = zeros(13, 1) #center of the computed ellipoid in the real 13 dimension
+    C[1:3] = M[1:3]
+    C[4:7] = qmult(x0[4:7], exp_quat(V'*M[4:6]/2)) #still need the reference
+    #C[1:4] = [1.0; 0.0; 0.0; 0.0]
+    C[8:13] = M[7:12]
+    W = inv(A) #W is D^(0.5) if A coming from convex problem is symmetric...
+    #@show(W)
+    for i =1:n
+        points2[:, 6*i-5] = M + 0.5*W[:, i]
+        points2[:, 6*i-4] = M - 0.5*W[:, i]
+        points2[:, 6*i-3] = M - 0.8*W[:, i]
+        points2[:, 6*i-2] = M + 0.8*W[:, i]
+        points2[:, 6*i-1] = M - W[:, i]
+        points2[:, 6*i] = M + W[:, i]
+        #@show(points2[:, 2*i])
+    end
+    for i =1:6*n
+        points3[1:3, i] = points2[1:3, i]
+        points3[4:7, i] = qmult(x0[4:7], exp_quat(V'*points2[4:6, i]/2))
+        points3[8:13, i] = points2[7:12, i]
+    end
+    points3[:, 6*n+1] = C
+    return points3, W #return 2n+1 points
+end
+
+ellipse2points2(A1, b1, x_0)
 ellipse2points(A1, b1, x_0)
 
 a=1
@@ -416,7 +451,7 @@ Q0 = Matrix(Q0)
 A1 = inv(sqrt(Q0))
 b1 = -A1*x0_12
 
-Δt = 100.0 #length simulation
+Δt = 200.0 #length simulation
 dt = 1.0
 T = 0.0:dt:Δt
 #T = t_sim_nom
@@ -431,6 +466,7 @@ r_G = [0.2; 0.0; 0.3]
 table_CF, table_Cτ = table_aero_spherecone(δ, r_min, r_cone, r_G)
 n = 12
 
+a=1
 function propagation(A1, b1)
     Re = 3389.5
     θ = 91*pi/180 #rotation angle about z-axis
@@ -444,13 +480,13 @@ function propagation(A1, b1)
     blist = zeros(n, length(T))
     Alist = zeros(n, n, length(T))
     centerlist = zeros(n, length(T))
-    XX = zeros(n+1, 2*n+1, length(T))
+    XX = zeros(n+1, 6*n+1, length(T))
     WW = zeros(n, n, length(T))
     for i=1:1:length(T)
         t = T[i]
         @show(t)
         #@show(x0)
-        X1, W = ellipse2points(A1, b1, x0) #return a set of points in dim 13
+        X1, W = ellipse2points2(A1, b1, x0) #return a set of points in dim 13
         #@show(X1)
         X2 = prop_points_last(X1, dt, u, w)
         x1 = X2[:, end] #we store the last (previous center propagated)
@@ -487,18 +523,17 @@ function uncertainty(Alist)
     t = length(Alist[1, 1, :])
     U = zeros(t)
     for i=1:1:t
-        U[i] = tr(Alist[:, :, i])
+        U[i] = tr(inv(Alist[:, :, i]))
     end
     Plots.plot(U)
     Plots.xlabel!("time")
     Plots.ylabel!("uncertainty matrix trace")
 end
 
-
 plot_traj_center(centerlist)
 uncertainty(Alist)
 
-Plots.plot(centerlist[2, :])
+Plots.scatter(centerlist[12, :])
 
 maximum(centerlist[1, :])
 minimum(centerlist[1, :])

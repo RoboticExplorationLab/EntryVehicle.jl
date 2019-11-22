@@ -483,8 +483,8 @@ Q0 = Matrix(Diagonal([0.01, 0.01]))
 A0 = inv(sqrt(Q0)) #matrix at t=0.0
 b0 = -A0*u0 #center at t=0.0
 
-Δt = 100.0 #length simulation
-dt = 1.0
+Δt = 1000.0 #length simulation
+dt = 2.0
 T = 0.0:dt:Δt
 n = 2
 
@@ -492,7 +492,7 @@ Alist, blist, centerlist, XX, E = prop2(A0, b0)
 
 plot_traj_center(centerlist)
 uncertainty(Alist)
-savefig("MC2")
+savefig("U_0.5sec")
 
 a=1
 

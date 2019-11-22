@@ -69,11 +69,11 @@ function uncertainty(Alist)
     t = length(Alist[1, 1, :])
     U = zeros(t)
     for i=1:1:t
-        U[i] = tr(Alist[:, :, i])
+        U[i] = tr(inv(Alist[:, :, i]))
     end
     Plots.plot(U)
     Plots.xlabel!("time")
-    Plots.ylabel!("uncertainty matrix trace")
+    Plots.ylabel!("uncertainty")
 end
 
 a=1
@@ -194,13 +194,48 @@ function ellipse2points(A, b, x0)
 end
 
 ellipse2points(A1, b1, x_0)
-#inv(A1)
+
+a = 1
+
+function ellipse2points2(A, b, x0)
+    #A is the matrix we obtain from the previous step
+    #x is the center of the ellipsoid in 7 dimensions
+    #y is the center of the ellipsoid in 6 dimensions
+    n = length(b)
+    V = [0.0 1.0 0.0 0.0; 0.0 0.0 1.0 0.0; 0.0 0.0 0.0 1.0]
+    points2 = zeros(n, 6*n)
+    points3 = zeros(n+1, 6*n+1)
+    M = -inv(A)*b
+    C = zeros(7, 1)
+    C[1:4] = qmult(x0[1:4], exp_quat(V'*M[1:3]/2))
+    C[5:7] = M[4:6]
+    W = inv(A)
+    for i =1:n
+        points2[:, 6*i-5] = M + 0.5*W[:, i]
+        points2[:, 6*i-4] = M - 0.5*W[:, i]
+        points2[:, 6*i-3] = M - 0.8*W[:, i]
+        points2[:, 6*i-2] = M + 0.8*W[:, i]
+        points2[:, 6*i-1] = M - W[:, i]
+        points2[:, 6*i] = M + W[:, i]
+    end
+    for i =1:6*n
+        points3[1:4, i] = qmult(x0[1:4], exp_quat(V'*points2[1:3, i]/2))
+        points3[5:7, i] = points2[4:6, i]
+    end
+    points3[:, 6*n+1] = C
+    return points3, W
+end
+
+a = 1
+
+ellipse2points2(A1, b1, x_0)
+
 
 function prop_points(X, dt)
     m = length(X[1, :])
     Xnew = zeros(size(X))
     for i=1:1:m
-        t_sim, Z = rk4(sys, X[:, i], p, 0.001, [0.0, dt]) #because autonomous sytem
+        t_sim, Z = rk4(sys, X[:, i], p, 0.01, [0.0, dt]) #because autonomous sytem
         Xnew[:, i] = Z[end, :]
     end
     return Xnew
@@ -270,13 +305,13 @@ function propagation(A1, b1)
     blist = zeros(n, length(T))
     Alist = zeros(n, n, length(T))
     centerlist = zeros(n, length(T))
-    XX = zeros(n+1, 2*n+1, length(T))
+    XX = zeros(n+1, 6*n+1, length(T))
     WW = zeros(n, n, length(T))
     for i=1:1:length(T)
         t = T[i]
         @show(t)
         #@show(x0)
-        X1, W = ellipse2points(A1, b1, x0) #return a set of points in dim 13
+        X1, W = ellipse2points2(A1, b1, x0) #return a set of points in dim 13
         #@show(X1)
         X2 = prop_points(X1, dt)
         x1 = X2[:, end] #we store the last (previous center propagated)
@@ -304,31 +339,188 @@ D = MvNormal(μ, Σ)
 τ = zeros(length(μ))
 rand!(D, τ)
 
+τ_n = τ
 F(t) = rand!(D, τ)
 
 #p = [100.0; 110.0; 300.0; -0.1319; 0.08; 0.0455]
 p = [100.0; 110.0; 300.0]
 
 dt = 1.0
-T = 0.0:dt:200.0
+T = 0.0:dt:400.0
 Alist, blist, centerlist, XX, WW = propagation(A1, b1)
 
-#plot uncertainty evolution (trace)
+#plot uncertainty evolution
 uncertainty(Alist)
+savefig("U3_1000")
 
-Plots.scatter(T, centerlist[1, :])
-Plots.scatter!(T, centerlist[2, :])
-Plots.scatter!(T, centerlist[3, :])
+Plots.scatter(T, centerlist[4, :])
+Plots.scatter!(T, centerlist[5, :])
 Plots.scatter!(T, centerlist[6, :])
-
+Plots.scatter!(T, centerlist[6, :])
+savefig("400sec_moreuncertainty_0.01rk_1.0prop")
 
 #ref trajectory
-t_span = [0.0;50.0]
+t_span = [0.0;400.0]
 dt = 0.01
 y_0 = x_0
 t_sim, y = rk4(sys, y_0, p, dt, t_span)
 
+#Plot state
+Plots.plot(t_sim, y[:, 1])
+plot!(t_sim, y[:, 2])
+plot!(t_sim, y[:, 3])
+plot!(t_sim, y[:, 4])
+
+Plots.plot(t_sim, y[:, 5])
+plot!(t_sim, y[:, 6])
+plot!(t_sim, y[:, 7])
+savefig("rot2_1000sec")
 t_sim, y1 = rk4(sys, y_0, p, dt, t_span)
+
+#####MONTE CARLO STUFF:
+
+using Distributions
+using Random
+
+θ = 91*pi/180 #rotation angle about z-axis
+M = [-sin(θ) cos(θ) 0.0;
+     0.0 0.0 1.0;
+     cos(θ) sin(θ) 0.0]
+Q = mat2quat(M)
+Q = qconj(Q)
+x_0 = [Q; 0.2; 0.1; 0.5]
+Q_0 = Matrix(Diagonal([0.01^2; 0.01^2; 0.01^2; 0.001^2; 0.001^2; 0.001^2])) #covariance matrix
+
+σ_x = 0.01 #actual value of one branch of the semi-axe
+σ_y = 0.01
+σ_z = 0.01
+σ_ωx = 0.001
+σ_ωy = 0.001
+σ_ωz = 0.001
+Q0 = Matrix(Diagonal([σ_x^2 σ_y^2 σ_z^2 σ_ωx^2 σ_ωy^2 σ_ωz^2]))
+
+Δt = 1000.0 #length simulation
+dt = 1.0
+T = 0.0:dt:Δt
+n = 2
+
+M = 100
+
+function p7_6(x)
+    U = zeros(6)
+    U[1:3] = 2*V*log_quat(x[1:4])
+    U[4:6] = x[5:7]
+    return U
+end
+
+x_0 = p7_6(x_0)
+
+D1 = Uniform(x_0[1]-σ_x, x_0[1]+σ_x)
+D2 = Uniform(x_0[2]-σ_y, x_0[2]+σ_y)
+D3 = Uniform(x_0[3]-σ_z, x_0[3]+σ_z)
+D4 = Uniform(x_0[4]-σ_ωx, x_0[4]+σ_ωx)
+D5 = Uniform(x_0[5]-σ_ωy, x_0[5]+σ_ωy)
+D6 = Uniform(x_0[6]-σ_ωz, x_0[6]+σ_ωz)
+x1 = zeros(1, M)
+x2 = zeros(1, M)
+x3 = zeros(1, M)
+x4 = zeros(1, M)
+x5 = zeros(1, M)
+x6 = zeros(1, M)
+rand!(D1, x1)
+rand!(D2, x2)
+rand!(D3, x3)
+rand!(D4, x4)
+rand!(D5, x5)
+rand!(D6, x6)
+x = vcat(x1, x2, x3, x4, x5, x6)
+
+function p6_7(x)
+    U = zeros(7)
+    U[1:4] = exp_quat(V'*x[1:3]/2)
+    U[5:7] = x[4:6]
+    return U
+end
+
+function prop_MC(x)
+    n, m = size(x)
+    saveAT = 1.0
+    tspan = [0.0,400.0]
+    dt = 0.01
+    traj = zeros(n+1,40001, m)
+    for i=1:1:m
+        Z = zeros(n, 40001)
+        u0 = p6_7(x[:, i])
+        #prob = ODEProblem(sys,u0,tspan,p)
+        @show(i)
+        #sol = DifferentialEquations.solve(prob, saveat = saveAT, abstol = 1e-9, reltol = 1e-9)
+        t_sim, Z = rk4(sys, u0, p, dt, tspan)
+        #for j =1:1:1001
+        #    Z[:, j] = (sol.u)[j]
+        #end
+        traj[:, :, i] = Z'
+    end
+    return traj
+end
+
+traj = prop_MC(x)
+
+anim = @animate for j=1:200:40000
+    if  j == 1
+        Plots.scatter(j*ones(M), traj[5, j, :], legend = false)
+    else
+        Plots.scatter!(j*ones(M), traj[5, j, :], legend = false)
+    end
+    xlabel!("time [s]")
+    #xlims!(0.0, 200.0)
+    ylims!(-0.25, 0.25)
+    ylabel!("angular velocity [rad.s-1]")
+    title!("MC angular velocity x step=$(j)")
+end
+gif(anim, "MC_400_comparison.gif", fps = 3)
+
+a = 1
+
+
+
+Plots.scatter(traj[6, 1, :], traj[7, 1, :])
+
+a = 1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 function linearize(t_sim, y)
     A = zeros(7, 7, length(t_sim))
@@ -402,7 +594,7 @@ scatter3d!(XX[5, :, J], XX[6, :, J], XX[7, :, J])
 
 #Presentation plots
 
-anim = @animate for j=1:1:100
+anim = @animate for j=1:1:50
     Plots.plot(t_sim, y[:, 5], legend = false)
     plot!(t_sim, y[:, 6])
     plot!(t_sim, y[:, 7])
@@ -419,6 +611,7 @@ end
 gif(anim, "test_rigid_body.gif", fps = 3)
 
 
+a = 1
 anim = @animate for J=1:1:100
     angles = 0.0:0.05:2*pi
     angles2 = 0.0:0.05:2*pi
@@ -500,15 +693,7 @@ fig = figure()
 ax = fig[:gca](projection="3d")
 Plots.plot!(ellipse[1, 2:end], ellipse[2, 2:end], ellipse[3, 2:end])
 
-#Plot state
-Plots.plot(t_sim, y[:, 1])
-plot!(t_sim, y[:, 2])
-plot!(t_sim, y[:, 3])
-plot!(t_sim, y[:, 4])
 
-Plots.plot(t_sim, y[:, 5])
-plot!(t_sim, y[:, 6])
-plot!(t_sim, y[:, 7])
 
 #=RK4 test
 function f(y, t)
