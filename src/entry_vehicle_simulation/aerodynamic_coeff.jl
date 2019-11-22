@@ -1,5 +1,8 @@
 #File contains functions commputing Aerodynamic Coefficients using Panel methods
 
+####################################
+####Pure Cone Geometry Procedure####
+####################################
 
 function compute_aero(δ, r_cone, r_G, r, v, q)
     #general case: v is the relative velocity of spacecraft wrt atm
@@ -38,14 +41,7 @@ function compute_aero(δ, r_cone, r_G, r, v, q)
     return F_aero_body*(A_cone/A), τ_aero_body*(A_cone/A)
 end
 
-function exponential_atmosphere(h)
-    ρ0 = 0.0158*10^9 #0.026455*10^9 #sea level density (kg/km^3)
-    h0 = 9.3545 #scale height on Mars(km)
-    ρ = ρ0*exp(-h/h0)
-end
-
-#test for offline coefficients computation
-
+#This function is for a cut cone up to r_min
 function compute_aero2(δ, r_min, r_cone, r_G, α)
     #general case: v is the relative velocity of spacecraft wrt atm
     R_e = 3389.5
@@ -91,6 +87,10 @@ function table_aero(δ, r_min, r_cone, r_G)
     return table_CF, table_Cτ
 end
 
+####################################
+####Pure Spherical Cap Procedure####
+####################################
+
 function compute_aero_sphere(δ, r_min, r_cone, r_G, α)
     #general case: v is the relative velocity of spacecraft wrt atm
     R_e = 3389.5
@@ -122,6 +122,10 @@ function compute_aero_sphere(δ, r_min, r_cone, r_G, α)
     return CF_aero_body, Cτ_aero_body  #CF_aero_body*(A_sphere/A), Cτ_aero_body*(A_sphere/A)
 end
 
+####################################
+########Sphere Cone tables##########
+####################################
+
 function table_aero_spherecone(δ, r_min, r_cone, r_G)
     α = 0.0:1.0:359.0
     n = length(α)
@@ -134,6 +138,16 @@ function table_aero_spherecone(δ, r_min, r_cone, r_G)
         table_Cτ[i, :] = Cτ_cone+Cτ_sphere
     end
     return table_CF, table_Cτ
+end
+
+####################################
+########Exp Atmospheric Model#######
+####################################
+
+function exponential_atmosphere(h)
+    ρ0 = 0.0158*10^9 #0.026455*10^9 #sea level density (kg/km^3)
+    h0 = 9.3545 #scale height on Mars(km)
+    ρ = ρ0*exp(-h/h0)
 end
 
 #=test space
