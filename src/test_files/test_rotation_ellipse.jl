@@ -118,24 +118,6 @@ p = [100.0; 110.0; 300.0; τ]
 y_0 = [1.0; 0.0; 0.0; 0.0; 0.1; 0.05; 0.01]
 t_sim, y = rk4(sys, y_0, p, dt, t_span)=#
 
-
-#first trial : only consider uncertaintyb in the state, will see later for τ
-θ = 91*pi/180 #rotation angle about z-axis
-M = [-sin(θ) cos(θ) 0.0;
-     0.0 0.0 1.0;
-     cos(θ) sin(θ) 0.0]
-Q = mat2quat(M)
-Q = qconj(Q)
-x_0 = [Q; 0.2; 0.1; 0.5]
-Q_0 = Matrix(Diagonal([0.01^2; 0.01^2; 0.01^2; 0.001^2; 0.001^2; 0.001^2])) #covariance matrix
-V = [0.0 1.0 0.0 0.0; 0.0 0.0 1.0 0.0; 0.0 0.0 0.0 1.0]
-E0 = Matrix(Diagonal([exp_quat(V'*[0.05^2; 0.05^2; 0.05^2]/2); 0.01^2; 0.01^2; 0.01^2]))
-
-A1 = inv(sqrt(Q_0)); #just for computation
-#A1 = Matrix(Diagonal([0.01;0.01;0.01;0.05;0.05;0.05]))
-b1 = -A1*[0.0;0.0;0.0; x_0[5:7]];
-a=1
-
 function ellipse2points(A, b, x0)
     #A is the matrix we obtain from the previous step
     #x is the center of the ellipsoid in 7 dimensions
@@ -226,10 +208,36 @@ function ellipse2points2(A, b, x0)
     return points3, W
 end
 
+function ellipse2points3(A, b, x0)
+    #A is the matrix we obtain from the previous step
+    #x is the center of the ellipsoid in 7 dimensions
+    #y is the center of the ellipsoid in 6 dimensions
+    n = length(b)
+    V = [0.0 1.0 0.0 0.0; 0.0 0.0 1.0 0.0; 0.0 0.0 0.0 1.0]
+    points2 = zeros(n, 2*n)
+    points3 = zeros(n+1, 2*n+1)
+    M = -inv(A)*b
+    C = zeros(7, 1)
+    C[1:4] = qmult(x0[1:4], exp_quat(V'*M[1:3]/2))
+    C[5:7] = M[4:6]
+    W = inv(A)
+    for i =1:n
+        points2[:, 2*i-1] = M - W[:, i]
+        points2[:, 2*i] = M + W[:, i]
+    end
+    for i =1:2*n
+        points3[1:4, i] = qmult(x0[1:4], exp_quat(V'*points2[1:3, i]/2))
+        points3[5:7, i] = points2[4:6, i]
+    end
+    points3[:, 2*n+1] = C
+    return points3, W
+end
+
+
+
 a = 1
 
-ellipse2points2(A1, b1, x_0)
-
+ellipse2points3(A1, b1, x_0)
 
 function prop_points(X, dt)
     m = length(X[1, :])
@@ -272,7 +280,7 @@ a=1
 function points2ellipse_mosek(X)
     n, m = size(X);
     s = MathOptInterface.LogDetConeTriangle(n)
-    model = Model(with_optimizer(Mosek.Optimizer))
+    model = Model(with_optimizer(Mosek.Optimizer, MSK_DPAR_INTPNT_CO_TOL_DFEAS=10^(-9), MSK_DPAR_INTPNT_CO_TOL_PFEAS=10^(-9), MSK_DPAR_INTPNT_CO_TOL_MU_RED = 10^(-10)))
     @variable(model, A[1:n, 1:n], PSD)
     @variable(model, b[1:n])
     @variable(model , t)
@@ -305,13 +313,14 @@ function propagation(A1, b1)
     blist = zeros(n, length(T))
     Alist = zeros(n, n, length(T))
     centerlist = zeros(n, length(T))
-    XX = zeros(n+1, 6*n+1, length(T))
+    XX = zeros(n+1, 2*n+1, length(T))
+    E = zeros(n, 2*n+1, length(T))
     WW = zeros(n, n, length(T))
     for i=1:1:length(T)
         t = T[i]
         @show(t)
         #@show(x0)
-        X1, W = ellipse2points2(A1, b1, x0) #return a set of points in dim 13
+        X1, W = ellipse2points4(A1, b1, x0) #return a set of points in dim 13
         #@show(X1)
         X2 = prop_points(X1, dt)
         x1 = X2[:, end] #we store the last (previous center propagated)
@@ -322,6 +331,7 @@ function propagation(A1, b1)
         blist[:, i] = b1
         Alist[:, :, i] = A1
         centerlist[:, i] = -inv(A1)*b1
+        E[:,:, i] = X3
         A1 = A2
         b1 = b2
         XX[:, :, i] = X1
@@ -329,38 +339,48 @@ function propagation(A1, b1)
         x0 = x1
         #@show(X1)
     end
-    return Alist, blist, centerlist, XX, WW
+    return Alist, blist, centerlist, XX, WW, E
 end
 
+θ = 91*pi/180 #rotation angle about z-axis
+M = [-sin(θ) cos(θ) 0.0;
+     0.0 0.0 1.0;
+     cos(θ) sin(θ) 0.0]
+Q = mat2quat(M)
+Q = qconj(Q)
+x_0 = [Q; 0.2; 0.1; 0.5]
+Q_0 = Matrix(Diagonal([0.05^2; 0.05^2; 0.05^2; 0.01^2; 0.01^2; 0.01^2])) #covariance matrix
+V = [0.0 1.0 0.0 0.0; 0.0 0.0 1.0 0.0; 0.0 0.0 0.0 1.0]
+E0 = Matrix(Diagonal([exp_quat(V'*[0.05^2; 0.05^2; 0.05^2]/2); 0.01^2; 0.01^2; 0.01^2]))
+
+A1 = inv(sqrt(Q_0)); #just for computation
+#A1 = Matrix(Diagonal([0.01;0.01;0.01;0.05;0.05;0.05]))
+b1 = -A1*[0.0;0.0;0.0; x_0[5:7]];
 
 μ = [0.0; 0.0; 0.0] #average of the perturbation (Gaussian)
-Σ = [1000.0 0.0 0.0; 0.0 1000.0 0.0; 0.0 0.0 1000.0] #covariance matrix
+Σ = [1.0 0.0 0.0; 0.0 1.0 0.0; 0.0 0.0 1.0] #covariance matrix
 D = MvNormal(μ, Σ)
 τ = zeros(length(μ))
-rand!(D, τ)
-
-τ_n = τ
 F(t) = rand!(D, τ)
 
 #p = [100.0; 110.0; 300.0; -0.1319; 0.08; 0.0455]
 p = [100.0; 110.0; 300.0]
-
 dt = 1.0
-T = 0.0:dt:400.0
-Alist, blist, centerlist, XX, WW = propagation(A1, b1)
+T = 0.0:dt:300.0
+Alist, blist, centerlist, XX, WW, E = propagation(A1, b1)
 
 #plot uncertainty evolution
 uncertainty(Alist)
-savefig("U3_1000")
+savefig("Uncertainty_1000_smallnoise_1st_scheme")
 
-Plots.scatter(T, centerlist[4, :])
-Plots.scatter!(T, centerlist[5, :])
-Plots.scatter!(T, centerlist[6, :])
-Plots.scatter!(T, centerlist[6, :])
-savefig("400sec_moreuncertainty_0.01rk_1.0prop")
+Plots.scatter(T, centerlist[1, :])
+Plots.scatter!(T, centerlist[2, :])
+Plots.scatter!(T, centerlist[3, :])
+Plots.scatter!(T, centerlist[4, :])
+savefig("1000_smallnoise_1st_scheme")
 
 #ref trajectory
-t_span = [0.0;400.0]
+t_span = [0.0;300.0]
 dt = 0.01
 y_0 = x_0
 t_sim, y = rk4(sys, y_0, p, dt, t_span)
@@ -374,8 +394,27 @@ plot!(t_sim, y[:, 4])
 Plots.plot(t_sim, y[:, 5])
 plot!(t_sim, y[:, 6])
 plot!(t_sim, y[:, 7])
-savefig("rot2_1000sec")
+savefig("300_1ndscheme_100noise_0.01rk_step1.0_nbr2")
 t_sim, y1 = rk4(sys, y_0, p, dt, t_span)
+
+#######Test ellispoid fit
+
+anim = @animate for j=200:1:250
+    scatter(E[1, :, j], E[2, :, j], legend = false)
+    angles = 0.0:0.01:2*pi
+    B = zeros(2, length(angles))
+    for i = 1:1:length(angles)
+        #B[:, i] = [cos(angles[i]) - blist[1, j+1], sin(angles[i]) - blist[2, j+1]]
+        #B[:, i] = [cos(angles[i]), sin(angles[i])]
+    end
+    ellipse  = Alist[1:2, 1:2, j+1] \ B
+    plot!(ellipse[1, :], ellipse[2, :])
+    title!("Ellipse fitting t=$(j)")
+    xlabel!("X")
+    ylabel!("̇X")
+end
+gif(anim, "ang_vel_ellipsoid.gif", fps = 1)
+
 
 #####MONTE CARLO STUFF:
 
@@ -388,8 +427,8 @@ M = [-sin(θ) cos(θ) 0.0;
      cos(θ) sin(θ) 0.0]
 Q = mat2quat(M)
 Q = qconj(Q)
-x_0 = [Q; 0.2; 0.1; 0.5]
-Q_0 = Matrix(Diagonal([0.01^2; 0.01^2; 0.01^2; 0.001^2; 0.001^2; 0.001^2])) #covariance matrix
+#x_0 = [Q; 0.2; 0.1; 0.5]
+#Q_0 = Matrix(Diagonal([0.01^2; 0.01^2; 0.01^2; 0.001^2; 0.001^2; 0.001^2])) #covariance matrix
 
 σ_x = 0.01 #actual value of one branch of the semi-axe
 σ_y = 0.01
@@ -413,14 +452,14 @@ function p7_6(x)
     return U
 end
 
-x_0 = p7_6(x_0)
+x_0_6 = p7_6(x_0)
 
-D1 = Uniform(x_0[1]-σ_x, x_0[1]+σ_x)
-D2 = Uniform(x_0[2]-σ_y, x_0[2]+σ_y)
-D3 = Uniform(x_0[3]-σ_z, x_0[3]+σ_z)
-D4 = Uniform(x_0[4]-σ_ωx, x_0[4]+σ_ωx)
-D5 = Uniform(x_0[5]-σ_ωy, x_0[5]+σ_ωy)
-D6 = Uniform(x_0[6]-σ_ωz, x_0[6]+σ_ωz)
+D1 = Uniform(x_0_6[1]-σ_x, x_0_6[1]+σ_x)
+D2 = Uniform(x_0_6[2]-σ_y, x_0_6[2]+σ_y)
+D3 = Uniform(x_0_6[3]-σ_z, x_0_6[3]+σ_z)
+D4 = Uniform(x_0_6[4]-σ_ωx, x_0_6[4]+σ_ωx)
+D5 = Uniform(x_0_6[5]-σ_ωy, x_0_6[5]+σ_ωy)
+D6 = Uniform(x_0_6[6]-σ_ωz, x_0_6[6]+σ_ωz)
 x1 = zeros(1, M)
 x2 = zeros(1, M)
 x3 = zeros(1, M)
@@ -445,11 +484,11 @@ end
 function prop_MC(x)
     n, m = size(x)
     saveAT = 1.0
-    tspan = [0.0,400.0]
+    tspan = [0.0,1000.0]
     dt = 0.01
-    traj = zeros(n+1,40001, m)
+    traj = zeros(n+1,100001, m)
     for i=1:1:m
-        Z = zeros(n, 40001)
+        Z = zeros(n, 100001)
         u0 = p6_7(x[:, i])
         #prob = ODEProblem(sys,u0,tspan,p)
         @show(i)
@@ -465,33 +504,29 @@ end
 
 traj = prop_MC(x)
 
-anim = @animate for j=1:200:40000
+anim = @animate for j=1:500:100000
     if  j == 1
-        Plots.scatter(j*ones(M), traj[5, j, :], legend = false)
+        Plots.scatter([j], [minimum(traj[7, j, :])], legend = false)
+        Plots.scatter!([j], [maximum(traj[7, j, :])], legend = false)
     else
-        Plots.scatter!(j*ones(M), traj[5, j, :], legend = false)
+        Plots.scatter!([j], [minimum(traj[7, j, :])], legend = false)
+        Plots.scatter!([j], [maximum(traj[7, j, :])], legend = false)
     end
     xlabel!("time [s]")
     #xlims!(0.0, 200.0)
-    ylims!(-0.25, 0.25)
+    ylims!(-0.2, 0.55)
     ylabel!("angular velocity [rad.s-1]")
-    title!("MC angular velocity x step=$(j)")
+    title!("MC angular velocity z step=$(j)")
 end
-gif(anim, "MC_400_comparison.gif", fps = 3)
+gif(anim, "MC_1000_comparison_z_ang_vel.gif", fps = 2)
 
 a = 1
 
 
 
-Plots.scatter(traj[6, 1, :], traj[7, 1, :])
+Plots.scatter(traj[5, 1, :], traj[6, 1, :])
 
 a = 1
-
-
-
-
-
-
 
 
 

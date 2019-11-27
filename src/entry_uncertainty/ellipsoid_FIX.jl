@@ -418,7 +418,7 @@ function prop_points_last(X, dt, u, w)
     m = length(X[1, :])
     Xnew = zeros(size(X))
     for i=1:1:m
-        t_sim, Z = rk4(dyna_coeffoff, X[:, i], u, 0.001, [0.0, dt])#integration2(dyna_coeffoff_inplace!, X[:, i], dt)
+        t_sim, Z = rk4(dyna_coeffoff, X[:, i], u, 0.01, [0.0, dt])#integration2(dyna_coeffoff_inplace!, X[:, i], dt)
         #rk4(dyna_coeffoff, X[:, i], u, 0.001, [0.0, dt])
         Xnew[:, i] = Z[end, :]
     end
@@ -443,7 +443,7 @@ Q = qconj(Q)
 x0 = [(3389.5+125)/Re; 0.0; 0.0; Q[1]; Q[2]; Q[3]; Q[4]; 0.0; 1.0; 0.0; 0.0; 0.0; 0.0] #okay in dimension 13: center at t=0
 x0_12 = [(3389.5+125)/Re; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0; 1.0; 0.0; 0.0; 0.0; 0.0]#because the center with respect to himself is 0
 Q0 = Diagonal(0.00000001*ones(12)) #here we assume the change in a(vector part of the change in quaternion)
-Q0 = Diagonal([(1.0/Re)^2;(1.0/Re)^2; (1.0/Re)^2; 0.01^2; 0.01^2; 0.01^2; 0.05^2; 0.05^2;0.05^2; 0.0000001; 0.0000001; 0.0000001]) #here we assume the change in a(vector part of the change in quaternion)
+Q0 = Diagonal([(0.1/Re)^2;(0.1/Re)^2; (0.1/Re)^2; 0.001^2; 0.001^2; 0.001^2; 0.001^2; 0.001^2;0.001^2; 0.0000001; 0.0000001; 0.0000001]) #here we assume the change in a(vector part of the change in quaternion)
 
 #Diagonal([0.1/Re; 0.1/Re; 0.1/Re; 0.01; 0.01; 0.01; 0.01; 0.0001; 0.0001; 0.0001; 0.01; 0.01; 0.01])
 Q0 = Matrix(Q0)
@@ -451,7 +451,7 @@ Q0 = Matrix(Q0)
 A1 = inv(sqrt(Q0))
 b1 = -A1*x0_12
 
-Δt = 200.0 #length simulation
+Δt = 100.0 #length simulation
 dt = 1.0
 T = 0.0:dt:Δt
 #T = t_sim_nom
@@ -571,5 +571,37 @@ anim = @animate for J=1:5:100
 end
 gif(anim, "plot_ellipse_ang_vel.gif", fps = 4)
 
-
 scatter3d!(WW[1, :, J], WW[2, :, J], WW[3, :, J], markersize=10.0)
+
+
+#MC on entry vehicle
+Re = 3389.5
+θ = 91*pi/180 #rotation angle about z-axis
+M = [-sin(θ) cos(θ) 0.0;
+     0.0 0.0 1.0;
+     cos(θ) sin(θ) 0.0]
+Q = mat2quat(M)
+Q = qconj(Q)
+x0 = [(3389.5+125)/Re; 0.0; 0.0; Q[1]; Q[2]; Q[3]; Q[4]; 0.0; 1.0; 0.0; 0.0; 0.0; 0.0] #okay in dimension 13: center at t=0
+x0_12 = [(3389.5+125)/Re; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0; 1.0; 0.0; 0.0; 0.0; 0.0]#because the center with respect to himself is 0
+Q0 = Diagonal(0.00000001*ones(12))
+
+D1 = Uniform(x_0_6[1]-σ_x, x_0_6[1]+σ_x)
+D2 = Uniform(x_0_6[2]-σ_y, x_0_6[2]+σ_y)
+D3 = Uniform(x_0_6[3]-σ_z, x_0_6[3]+σ_z)
+D4 = Uniform(x_0_6[4]-σ_ωx, x_0_6[4]+σ_ωx)
+D5 = Uniform(x_0_6[5]-σ_ωy, x_0_6[5]+σ_ωy)
+D6 = Uniform(x_0_6[6]-σ_ωz, x_0_6[6]+σ_ωz)
+x1 = zeros(1, M)
+x2 = zeros(1, M)
+x3 = zeros(1, M)
+x4 = zeros(1, M)
+x5 = zeros(1, M)
+x6 = zeros(1, M)
+rand!(D1, x1)
+rand!(D2, x2)
+rand!(D3, x3)
+rand!(D4, x4)
+rand!(D5, x5)
+rand!(D6, x6)
+x = vcat(x1, x2, x3, x4, x5, x6)
