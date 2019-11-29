@@ -55,8 +55,8 @@ M = [-sin(θ) cos(θ) 0.0;
      cos(θ) sin(θ) 0.0]
 Q = mat2quat(M) #CHANGE THAT
 Q = qconj(Q)
-x0 = [(3389.5+900)/Re, 0.0, 0.0, Q[1], Q[2], Q[3], Q[4], -3.0, 5.0, 0.0, 0.0, 0.0, 0.0]
-Δt = 1200.0
+x0 = [(3389.5+900)/Re, 0.0, 0.0, Q[1], Q[2], Q[3], Q[4], 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
+Δt = 280.0
 
 ####################################
 ######Uncertainty Parameters########
@@ -129,3 +129,64 @@ B = zeros(2, length(angles))
 for i = 1:1:length(angles)
       B[:, i] = [cos(angles[i]) - b[1], sin(angles[i]) - b[2]]
 end
+
+####################################
+#######MONTE CARLO SIMULATION#######
+####################################
+
+using Distributions
+using Random
+
+function generate_samples(x_0, Q, M)
+    #M number of samples
+    univariate_D_vector = [Uniform(x_0[i]-sqrt(Q[i,i]),x_0[i]+sqrt(Q[i,i])) for i=1:length(x_0)]
+    D = Product(univariate_D_vector)
+    X_samples = zeros(13, M)
+    rand!(D, X_samples)
+    return X_samples
+end
+
+function prop_MC_entry(X_samples, t_start, t_end, dt)
+    n, M = size(X_samples)
+    #saveAT = 1.0
+    T = t_start:dt:t_end
+    traj = zeros(n, length(T), M)
+    for i=1:1:M
+        @show(i)
+        x_ini = X_samples[:, i]
+        #prob = ODEProblem(duffing!,u0,tspan,M)
+        #sol = DifferentialEquations.solve(prob, saveat = saveAT, abstol = 1e-9, reltol = 1e-9)
+        t_sim, Z = rk4(dyna_coeffoff, x_ini, [0.0], dt, [t_start, t_end])
+        traj[:, :, i] = Z
+    end
+    return traj
+end
+
+x_0 = [(3389.5+125)/Re, 0.0, 0.0, Q[1], Q[2], Q[3], Q[4], -3.0, 5.0, 0.0, 0.0, 0.0, 0.0]
+Q = Diagonal(0.00001*ones(13))
+X_samples = generate_samples(x_0, Q, 100)
+t_start = 0.0
+dt = 0.01
+t_end = 300.0
+traj = prop_MC_entry(X_samples, t_start, t_end, dt)
+
+plot_traj2(traj[:, :, 11])
+plot_altitude()
+
+function plot_traj_MC(traj)
+    n, T, M = size(traj)
+    for i=1:1:M
+        X = traj[1, :, i]
+        Y = traj[2, :, i]
+        if i == 1
+            Plots.plot(X, Y)
+        else
+            Plots.plot!(X, Y)
+        end
+    end
+end
+
+plot_traj_MC(traj)
+
+
+Plots.scatter(traj[1, 1, :], traj[2, 1, :])

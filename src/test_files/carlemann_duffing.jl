@@ -231,3 +231,25 @@ function prop2(A1, b1)
 end
 
 Alist, blist, centerlist, XX, E, OBJ = prop2(A0, b0)
+
+
+########################################################
+######Ellipse Propagation using Linearize dynamics######
+########################################################
+
+E_0 = Matrix(Diagonal(0.0001*ones(N))) #uncertainty in 15 dimension
+
+
+function prop_uncertainty_lin(E_0)
+    T = 0.0:1.0:50.0
+    EE = zeros(N, N, length(T))
+    EE[:, :, 1] = E_0
+    for i = 1:1:length(T)-1
+        t = T[i]
+        A = carlemann_matrix(p, t)
+        EE[:, :, i+1] = A*EE[:, :, i]*A'
+    end
+    return EE
+end
+
+prop_uncertainty_lin(E_0) #big numbers here, not good, Ellipsoids grow unbounded as if there was chaos
