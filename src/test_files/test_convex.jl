@@ -7,23 +7,132 @@ using Roots
 using Distributions
 using Mosek
 using Random
+using Mosek, Mosek.Ext
+using JuMP
+using ECOS #does not solver SDPs
+using MathProgBase
+using Gurobi #works properly but
+using MathOptInterface
+using MosekTools
 pyplot()
 gr()
 
-D = Uniform(-10, 10)
-x = zeros(3, 15)
-rand!(D, x)
+D1 = Uniform(-5, 5)
+D2 = Uniform(0, 10)
+x1 = zeros(1, 4)
+x2 = zeros(1, 4)
+rand!(D1, x1)
+rand!(D2, x2)
+x = vcat(x1, x2)
 
+#=
 n, m = size(x);
 
 A = Semidefinite(n)
 b = Variable(n)
 problem = maximize(logdet(A), [norm(A*x[:, i]+b, 2)<=1 for i = 1:1:m])
 
-Convex.solve!(problem, GurobiSolver())
+Convex.solve!(problem, SCSSolver())
 
 problem.status
 problem.optval
+
+A = A.value
+b = b.value =#
+
+
+function points2ellipse_mosek(X)
+    n, m = size(X);
+    s = MathOptInterface.LogDetConeTriangle(n)
+    model = Model(with_optimizer(Mosek.Optimizer, MSK_DPAR_INTPNT_CO_TOL_DFEAS=10^(-9), MSK_DPAR_INTPNT_CO_TOL_PFEAS=10^(-9), MSK_DPAR_INTPNT_CO_TOL_MU_RED = 10^(-10))) #MSK_DPAR_INTPNT_CO_TOL_INFEAS=10^(-12), MSK_IPAR_INTPNT_MAX_ITERATIONS=1000))
+    @variable(model, A[1:n, 1:n], PSD)
+    @variable(model, b[1:n])
+    @variable(model , t)
+    @objective(model, Max, t)
+    @constraint(model, con[i = 1:m], [1.0; A*X[:, i]+b] in SecondOrderCone())
+    V = [A[i, j] for j in 1:1:n for i in 1:1:j] #vectorize form of the matrix
+    @constraint(model, [t;1.0;V] in s)
+    #@show(con)
+    #MathOptInterface.TimeLimitSec() = 0.5
+    JuMP.optimize!(model)
+    a = JuMP.termination_status(model)
+    @show(a)
+    @show(objective_value(model))
+    obj = objective_value(model)
+    A = JuMP.value.(A)
+    b = JuMP.value.(b)
+    return A, b, obj
+end
+
+A, b = points2ellipse_mosek(x)
+
+angles = 0.0:0.01:2*pi
+B = zeros(2, length(angles))
+for i = 1:1:length(angles)
+      B[:, i] = [cos(angles[i]) - b[1], sin(angles[i]) - b[2]]
+end
+
+
+ellipse  = A \ B
+
+Plots.scatter(x[1,:], x[2,:])
+Plots.plot!(ellipse[1, :], ellipse[2, :])
+
+XX = points(A, b)
+XXX = points2_chol(A, b)
+Plots.scatter!(XX[1, :], XX[2, :])
+Plots.scatter!(XXX[1, :], XXX[2, :])
+
+function points(A, b)
+      n = length(b)
+      W = inv(A)
+      M = -inv(A)*b
+      X = zeros(2, 4)
+      for i=1:1:n
+            X[:, 2*i-1] = M- W[:, i]
+            X[:, 2*i] = M +W[:, i]
+      end
+      return X
+end
+
+function points2_chol(A, b)
+      n = length(b)
+      W = inv(A)
+      M = -inv(A)*b
+      X = zeros(2, 4)
+      AA = A*A
+      C = cholesky(AA)
+      L = C.L
+      SV = svd(L)
+      U = SV.U
+      Σ = Diagonal(SV.S)
+      for i=1:1:n
+            X[:, 2*i-1] = M-(1/Σ[i, i])*U[:, i]
+            X[:, 2*i] = M+(1/Σ[i, i])*U[:, i]
+      end
+      return X
+end
+
+######################
+###DIFFERENT STUFF####
+######################
+
+
+M = -inv(A)*b
+T = A'*A
+F = eigen(T)
+W = F.vectors
+V = F.values
+v1 = M+(1/sqrt(V[2]))*W[:, 2]
+v2 = M+(1/sqrt(V[1]))*W[:, 1]
+v3 = M-(1/sqrt(V[2]))*W[:, 2]
+v4 = M-(1/sqrt(V[1]))*W[:, 1]
+
+scatter!([v1[1], v2[1], v3[1], v4[1]], [v1[2], v2[2], v3[2], v4[2]])
+
+
+
+Plots.scatter()
 
 #b = [-0.339299; -0.0561543]
 #A = [2.42823 -0.0557447; -0.0557448 2.96796]
