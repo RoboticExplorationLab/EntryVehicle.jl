@@ -23,7 +23,7 @@ function sys(u, p, t)
     I2 = p[2]
     I3 = p[3]
     τ = F(t) #see how to deal with that
-    #τ = [0.0;0.0;0.0]
+    τ = [0.0;0.0;0.0]
     #@show(τ)
     I = Diagonal([I1; I2; I3])
     I_inv = Diagonal([1/I1; 1/I2; 1/I3])
@@ -39,6 +39,7 @@ function sys(u, p, t)
     #update
     du[5:7] = I_inv*(τ-cross(u[5:7], I*u[5:7])+τ_c)
     du[1:4] = 0.5*qmult(q, [0; ω])
+    #@show(τ)
     return du
 end
 a=1
@@ -101,6 +102,8 @@ function rk4(f, y_0, p, dt, t_span)
     end
     return T, y
 end
+
+a=1
 
 #=time
 t_span = [0.0; 500.0]
@@ -243,7 +246,7 @@ function prop_points(X, dt)
     m = length(X[1, :])
     Xnew = zeros(size(X))
     for i=1:1:m
-        t_sim, Z = rk4(sys, X[:, i], p, 0.01, [0.0, dt]) #because autonomous sytem
+        t_sim, Z = rk4(sys, X[:, i], p, 0.001, [0.0, dt]) #because autonomous sytem
         Xnew[:, i] = Z[end, :]
     end
     return Xnew
@@ -294,9 +297,10 @@ function points2ellipse_mosek(X)
     a = JuMP.termination_status(model)
     @show(a)
     @show(objective_value(model))
+    obj = objective_value(model)
     A = JuMP.value.(A)
     b = JuMP.value.(b)
-    return A, b
+    return A, b, obj
 end
 
 a=1
@@ -319,15 +323,23 @@ function propagation(A1, b1)
     for i=1:1:length(T)
         t = T[i]
         @show(t)
+        @show(i)
         #@show(x0)
-        X1, W = ellipse2points4(A1, b1, x0) #return a set of points in dim 13
-        #@show(X1)
+        @show(A1, b1)
+        X1, W = ellipse2points(A1, b1, x0) #return a set of points in dim 7
+        @show(X1)
         X2 = prop_points(X1, dt)
         x1 = X2[:, end] #we store the last (previous center propagated)
-        #@show(X2)
+        @show(X2)
         X3 = points7_6(X2, x1)
-        #@show(X3)
-        A2, b2 = points2ellipse_mosek(X3)
+        @show(X3)
+        #A2, b2 = points2ellipse_mosek(X3)
+        e = ones(13)
+        @show(rank([X3; e']))
+        A2, b2 = DRN_algo(X3)
+        #if obj <= 0.0 && t >=5.0
+        #    return Alist, blist, centerlist, XX, WW, E
+        #end
         blist[:, i] = b1
         Alist[:, :, i] = A1
         centerlist[:, i] = -inv(A1)*b1
@@ -342,6 +354,9 @@ function propagation(A1, b1)
     return Alist, blist, centerlist, XX, WW, E
 end
 
+Alist[:, :, 300] - Alist[:, :, 300]'
+
+
 θ = 91*pi/180 #rotation angle about z-axis
 M = [-sin(θ) cos(θ) 0.0;
      0.0 0.0 1.0;
@@ -353,9 +368,10 @@ Q_0 = Matrix(Diagonal([0.05^2; 0.05^2; 0.05^2; 0.01^2; 0.01^2; 0.01^2])) #covari
 V = [0.0 1.0 0.0 0.0; 0.0 0.0 1.0 0.0; 0.0 0.0 0.0 1.0]
 E0 = Matrix(Diagonal([exp_quat(V'*[0.05^2; 0.05^2; 0.05^2]/2); 0.01^2; 0.01^2; 0.01^2]))
 
-A1 = inv(sqrt(Q_0)); #just for computation
+size(centerlist)
+A0 = inv(sqrt(Q_0)); #just for computation
 #A1 = Matrix(Diagonal([0.01;0.01;0.01;0.05;0.05;0.05]))
-b1 = -A1*[0.0;0.0;0.0; x_0[5:7]];
+b0 = -A0*[0.0;0.0;0.0; x_0[5:7]];
 
 μ = [0.0; 0.0; 0.0] #average of the perturbation (Gaussian)
 Σ = [1.0 0.0 0.0; 0.0 1.0 0.0; 0.0 0.0 1.0] #covariance matrix
@@ -365,22 +381,22 @@ F(t) = rand!(D, τ)
 
 #p = [100.0; 110.0; 300.0; -0.1319; 0.08; 0.0455]
 p = [100.0; 110.0; 300.0]
-dt = 1.0
-T = 0.0:dt:300.0
-Alist, blist, centerlist, XX, WW, E = propagation(A1, b1)
+dt = 0.1
+T = 0.0:dt:50.0
+Alist, blist, centerlist, XX, WW, E = propagation(A0, b0)
 
 #plot uncertainty evolution
 uncertainty(Alist)
 savefig("Uncertainty_1000_smallnoise_1st_scheme")
 
-Plots.scatter(T, centerlist[1, :])
-Plots.scatter!(T, centerlist[2, :])
-Plots.scatter!(T, centerlist[3, :])
+Plots.scatter(T, centerlist[4, :])
+Plots.scatter!(T, centerlist[5, :])
+Plots.scatter!(T, centerlist[6, :])
 Plots.scatter!(T, centerlist[4, :])
 savefig("1000_smallnoise_1st_scheme")
 
 #ref trajectory
-t_span = [0.0;300.0]
+t_span = [0.0;50.0]
 dt = 0.01
 y_0 = x_0
 t_sim, y = rk4(sys, y_0, p, dt, t_span)
@@ -391,7 +407,7 @@ plot!(t_sim, y[:, 2])
 plot!(t_sim, y[:, 3])
 plot!(t_sim, y[:, 4])
 
-Plots.plot(t_sim, y[:, 5])
+Plots.plot!(t_sim, y[:, 5])
 plot!(t_sim, y[:, 6])
 plot!(t_sim, y[:, 7])
 savefig("300_1ndscheme_100noise_0.01rk_step1.0_nbr2")
@@ -415,6 +431,10 @@ anim = @animate for j=200:1:250
 end
 gif(anim, "ang_vel_ellipsoid.gif", fps = 1)
 
+
+#M = [5.3006e7 -9.11248e6 16763.5 -56896.4 -2.33269e5 2.85424e5; -9.11248e6 2.48855e7 2315.55 -3.79264e7 2.69889e7 -2.37452e5; 16763.5 2315.55 1232.72 -11700.8 8010.26 982.162; -56896.4 -3.79264e7 -11700.8 9.86054e7 -5.00146e7 2.58538e5; -2.33269e5 2.69889e7 8010.26 -5.00146e7 3.62198e7 -2.13358e5; 2.85424e5 -2.37452e5 982.162 2.58538e5 -2.13358e5 11109.8]
+#-logdet(M)
+#sqrt(M)
 
 #####MONTE CARLO STUFF:
 
@@ -550,10 +570,10 @@ a = 1
 
 
 
+X3 = [5.8807e-8 -5.8807e-8 2.22193e-8 -2.22192e-8 -7.71073e-8 7.71125e-8 3.63605e-10 -3.63605e-10 -1.20029e-8 1.20029e-8 1.10569e-7 -1.10545e-7 0.0; 2.02256e-8 -2.02256e-8 3.88489e-7 -3.88489e-7 -3.52105e-7 3.52106e-7 1.09776e-8 -1.09776e-8 9.4028e-8 -9.4028e-8 1.56888e-6 -1.56888e-6 0.0; -7.08127e-8 7.08127e-8 -1.8735e-7 1.8735e-7 0.000538933 -0.000538933 4.06905e-8 -4.06905e-8 -8.36772e-8 8.36772e-8 -4.2577e-5 4.2577e-5 0.0; -5.62299e-7 -5.6041e-7 -5.52201e-7 -5.70508e-7 -5.30952e-7 -5.91759e-7 -5.54009e-7 -5.687e-7 -5.45917e-7 -5.76792e-7 -4.5803e-7 -6.64667e-7 -5.61354e-7; -2.45279e-6 -2.42606e-6 -2.35691e-6 -2.52194e-6 -2.49716e-6 -2.38169e-6 -2.4242e-6 -2.45465e-6 -2.3834e-6 -2.49545e-6 -2.66072e-6 -2.21813e-6 -2.43942e-6; -0.00272149 -0.00272169 -0.00272002 -0.00272317 -0.00278079 -0.00266239 -0.00272149 -0.0027217 -0.0027218 -0.00272138 -0.00256827 -0.00287492 -0.00272159]
 
-
-
-
+e = ones(13)
+rank([X3; e'])
 
 
 

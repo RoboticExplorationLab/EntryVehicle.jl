@@ -18,25 +18,25 @@ gr()
 
 function sys!(du,u,p,t)
  du[1] = u[2]
- du[2] = -u[1] -0.5*u[2]#+u[1]^2
+ du[2] = -u[1]+F(t)[1]#+u[1]^2
 end
 
 u0 = [0.5;1.0]
-tspan = (0.0,400.0)
+tspan = (0.0,100.0)
 prob = ODEProblem(sys!,u0,tspan)
-sol = DifferentialEquations.solve(prob, reltol=1e-15,abstol=1e-15)
+sol = DifferentialEquations.solve(prob)
 
 Plots.plot(sol, vars=(1,2))
-
+Plots.plot!(sol, vars=(1))
 
 #initialization
 u0 = [0.5;1.0]
-Q0 = Matrix(Diagonal([5.0, 5.0]))
+Q0 = Matrix(Diagonal([0.01, 0.01]))
 A0 = inv(sqrt(Q0)) #matrix at t=0.0
 b0 = -A0*u0 #center at t=0.0
 
 Δt = 100.0 #length simulation
-dt = 1.0
+dt = 0.01
 T = 0.0:dt:Δt
 n = 2
 
@@ -168,7 +168,7 @@ function prop_points_continuous(X, dt)
     Xnew = zeros(size(X))
     for i=1:1:m
         prob = ODEProblem(sys!, X[:, i], tspan)
-        sol = solve(prob, reltol=1e-15,abstol=1e-15)
+        sol = DifferentialEquations.solve(prob)
         Xnew[:, i] = sol.u[end]
     end
     return Xnew
@@ -185,13 +185,14 @@ function prop(A1, b1)
     for i=1:1:length(T)
         t = T[i]
         @show(t)
-        X1 = ellipse2points5(A1, b1) #return a set of points
+        X1 = ellipse2points4(A1, b1) #return a set of points
         X2 = prop_points_continuous(X1, dt) #prop_points(X1, t, dt, u, w)
         A2, b2, obj = points2ellipse_mosek(X2)
+        #A2, b2 = DRN_algo(X2)
         blist[:, i] = b1
         Alist[:, :, i] = A1
         centerlist[:, i] = -inv(A1)*b1
-        OBJ[i] = obj
+        #OBJ[i] = obj
         E[:, :, i] = X2
         A1 = A2
         b1 = b2
@@ -201,15 +202,21 @@ function prop(A1, b1)
     return Alist, blist, centerlist, XX, E, OBJ
 end
 
+μ = [0.0] #average of the perturbation (Gaussian)
+Σ = [0.1] #covariance matrix
+D = MvNormal(μ, Σ)
+τ = zeros(length(μ))
+F(t) = rand!(D, τ)
 
 Alist, blist, centerlist, XX, E, OBJ = prop(A0, b0)
 
 plot_traj_center(centerlist)
 uncertainty(Alist)
+Plots.plot([0.0:0.01:100.0], centerlist[2, :])
 
 a=1
 
-anim = @animate for j=1:1:100
+anim = @animate for j=1:50:1000
     angles = 0.0:0.01:2*pi
     B = zeros(2, length(angles))
     for i = 1:1:length(angles)
@@ -217,7 +224,7 @@ anim = @animate for j=1:1:100
         #B[:, i] = [cos(angles[i]), sin(angles[i])]
     end
     ellipse  = Alist[1:2, 1:2, j] \ B
-    Plots.plot(sol, vars=(1,2), legend = false)
+    #Plots.plot(sol, vars=(1,2), legend = false)
     scatter!([centerlist[1, j]],[centerlist[2, j]] )
     Plots.plot!(ellipse[1, :], ellipse[2, :], legend = false)
     #xlims!(-0.01, 0.01)
@@ -229,11 +236,11 @@ anim = @animate for j=1:1:100
     #ylabel!("velocity")
     title!("Ellipse propagation step=$(j), OBJ=$(OBJ[j])")
 end
-gif(anim, "test_linear_system.gif", fps = 1)
+gif(anim, "test_linear_system_noise.gif", fps = 1)
 
 a = 1
 
-anim = @animate for j=50:1:100
+anim = @animate for j=300:1:400
     Plots.scatter(E[1, :, j], E[2, :, j], legend = false)
     angles = 0.0:0.01:2*pi
     B = zeros(2, length(angles))
@@ -247,7 +254,7 @@ anim = @animate for j=50:1:100
     xlabel!("X")
     ylabel!("̇X")
 end
-gif(anim, "test_linear_fit_prez.gif", fps = 1)
+gif(anim, "test_linear_fit.gif", fps = 1)
 
 
 function ellipse2points2(A, b)

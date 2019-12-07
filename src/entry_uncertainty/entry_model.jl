@@ -193,7 +193,9 @@ function dyna_coeffoff(t, x, u)
     ω_mars = [0; 0; 7.095*10^(-5)]
     v_rel = (v-cross(ω_mars, r*Re)) #velocity of spacecraft wrt atm
     v_body = qrot(qconj(q), v_rel) #velocity of spacecraft wrt atm in body frame
+    @show(v_body)
     α = acos(v_body[3]/norm(v_body)) #radians
+    #@show(α)
     α = floor(Int, α*180/pi)+1 #degrees
 
     CF = table_CF[α, :]

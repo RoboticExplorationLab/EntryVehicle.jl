@@ -36,7 +36,7 @@ Q = mat2quat(M) #CHANGE THAT
 Q = qconj(Q)
 #x0 = [(3389.5+125)/Re, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
 x0 = [(3389.5+125)/Re, 0.0, 0.0, Q[1], Q[2], Q[3], Q[4], 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
-Δt = 60 #length simulation
+Δt = 30 #length simulation
 
  ####################################
  #####Dynamics - Integration#########
@@ -47,8 +47,9 @@ t_sim_nom, Z = integration2(dyna_coeffoff_inplace!, x0, Δt)
  #new part for offline aerodynamic coefficients computation
 δ = 70*pi/180
 r_cone = 1.3
+r_min = 0.2
 r_G = [0.2; 0.0; 0.3]
-table_CF, table_Cτ = table_aero(δ, r_cone, r_G)
+table_CF, table_Cτ = table_aero(δ, r_cone, r_min, r_G)
 
 t_sim_nom, Z = integration2(dyna_coeffoff_inplace!, x0, Δt)
 
@@ -134,15 +135,15 @@ Q = mat2quat(M)
 Q = qconj(Q)
 x0 = [(3389.5+125)/Re; 0.0; 0.0; Q[1]; Q[2]; Q[3]; Q[4]; 0.0; 1.0; 0.0; 0.0; 0.0; 0.0] #okay in dimension 13: center at t=0
 x0_12 = [(3389.5+125)/Re; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0; 1.0; 0.0; 0.0; 0.0; 0.0] #because the center with respect to himself is 0
-Q0 = Diagonal([(1.0/Re)^2;(1.0/Re)^2; (1.0/Re)^2; 0.01^2; 0.01^2; 0.01^2; 0.05^2; 0.05^2;0.05^2; 0.0000001; 0.0000001; 0.0000001]) #here we assume the change in a(vector part of the change in quaternion)
+Q0 = Diagonal([(0.1/Re)^2;(0.1/Re)^2; (0.1/Re)^2; 0.001^2; 0.001^2; 0.001^2; 0.05^2; 0.05^2;0.05^2; 0.0000001; 0.0000001; 0.0000001]) #here we assume the change in a(vector part of the change in quaternion)
 #Diagonal([0.1/Re; 0.1/Re; 0.1/Re; 0.01; 0.01; 0.01; 0.01; 0.0001; 0.0001; 0.0001; 0.01; 0.01; 0.01])
 Q0 = Matrix(Q0)
 
 A1 = inv(sqrt(Q0))
 b1 = -A1*x0_12
 
-Δt = 80.0 #length simulation
-dt = 0.5
+Δt = 30.0 #length simulation
+dt = 0.1
 T = 0.0:dt:Δt
 #T = t_sim_nom
 
@@ -418,7 +419,7 @@ function prop_points_last(X, dt, u, w)
     m = length(X[1, :])
     Xnew = zeros(size(X))
     for i=1:1:m
-        t_sim, Z = rk4(dyna_coeffoff, X[:, i], u, 0.01, [0.0, dt])#integration2(dyna_coeffoff_inplace!, X[:, i], dt)
+        t_sim, Z = rk4(dyna_coeffoff, X[:, i], u, 0.001, [0.0, dt])#integration2(dyna_coeffoff_inplace!, X[:, i], dt)
         #rk4(dyna_coeffoff, X[:, i], u, 0.001, [0.0, dt])
         Xnew[:, i] = Z[end, :]
     end
@@ -451,8 +452,8 @@ Q0 = Matrix(Q0)
 A1 = inv(sqrt(Q0))
 b1 = -A1*x0_12
 
-Δt = 100.0 #length simulation
-dt = 1.0
+Δt = 200.0 #length simulation
+dt = 0.1
 T = 0.0:dt:Δt
 #T = t_sim_nom
 
@@ -480,13 +481,13 @@ function propagation(A1, b1)
     blist = zeros(n, length(T))
     Alist = zeros(n, n, length(T))
     centerlist = zeros(n, length(T))
-    XX = zeros(n+1, 6*n+1, length(T))
+    XX = zeros(n+1, 2*n+1, length(T))
     WW = zeros(n, n, length(T))
     for i=1:1:length(T)
         t = T[i]
         @show(t)
         #@show(x0)
-        X1, W = ellipse2points2(A1, b1, x0) #return a set of points in dim 13
+        X1, W = ellipse2points(A1, b1, x0) #return a set of points in dim 13
         #@show(X1)
         X2 = prop_points_last(X1, dt, u, w)
         x1 = X2[:, end] #we store the last (previous center propagated)

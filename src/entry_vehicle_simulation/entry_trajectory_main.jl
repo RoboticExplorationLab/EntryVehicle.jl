@@ -55,7 +55,7 @@ M = [-sin(θ) cos(θ) 0.0;
      cos(θ) sin(θ) 0.0]
 Q = mat2quat(M) #CHANGE THAT
 Q = qconj(Q)
-x0 = [(3389.5+900)/Re, 0.0, 0.0, Q[1], Q[2], Q[3], Q[4], 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
+x0 = [(3389.5+125)/Re, 0.0, 0.0, Q[1], Q[2], Q[3], Q[4], 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
 Δt = 280.0
 
 ####################################
@@ -96,17 +96,17 @@ animate_traj(t_sim, Z)
 #####State Variables - 2D Plots#####
 ####################################
 
-plot_traj(Z)
+plot_traj(Z4)
 #Plots.savefig("1")
-plot_altitude(Z, t_sim)
+plot_altitude(Z4, t_sim4)
 #Plots.savefig("2")
 plot_vel(Z, t_sim)
 #Plots.savefig("3")
-plot_quaternions(Z, t_sim)
+plot_quaternions(Z4, t_sim4)
 #savefig("4")
-plot_ang_vel(Z, t_sim)
+plot_ang_vel(Z4, t_sim4)
 #savefig("5")
-norm_quaternions(Z, t_sim)
+norm_quaternions(Z4, t_sim4)
 
 plot_traj3D(Z)
 

@@ -51,8 +51,8 @@ end
 
 α = -1.0
 β = 1.0
-γ = 0.2
-δ = 0.1
+γ = 0.1
+δ = 0.2
 A = carlemann_matrix(2, pi)
 
 function basis(x, p)
@@ -83,8 +83,8 @@ end
 
 t_ini = 0.0
 t_end = 100.0
-dt = 0.1
-p = 4
+dt = 0.01
+p = 4 #order 3 is enough when dt small enough
 x_ini = [0.1 10.0]
 N = Int64((p+1)*(p+2)/2)
 X = integration_carlemann(x_ini, t_ini, t_end, dt)
@@ -92,6 +92,7 @@ Plots.plot(X[1, :], X[2, :])
 σ_x1 = 0.01
 σ_x2 = 0.01
 
+n = 15
 
 T = 0.0:1.0:10.0
 Q_14 = Matrix(Diagonal(0.0001*ones(N-1)))
@@ -227,18 +228,16 @@ function prop2(A1, b1)
         XXX[:, :, i] = X1
         #@show(X1)
     end
-    return Alist, blist, centerlist, XX, E, OBJ
+    return Alist, blist, centerlist, XXX, E, OBJ
 end
 
 Alist, blist, centerlist, XX, E, OBJ = prop2(A0, b0)
-
 
 ########################################################
 ######Ellipse Propagation using Linearize dynamics######
 ########################################################
 
 E_0 = Matrix(Diagonal(0.0001*ones(N))) #uncertainty in 15 dimension
-
 
 function prop_uncertainty_lin(E_0)
     T = 0.0:1.0:50.0
@@ -253,3 +252,8 @@ function prop_uncertainty_lin(E_0)
 end
 
 prop_uncertainty_lin(E_0) #big numbers here, not good, Ellipsoids grow unbounded as if there was chaos
+
+#Implement SOS to see if we can find a matrix P satisfying Lyapunov equation
+#with the state vector being the one in 15 dimensions basically.
+
+Plots.savefig("Duffing_Carlemann")
