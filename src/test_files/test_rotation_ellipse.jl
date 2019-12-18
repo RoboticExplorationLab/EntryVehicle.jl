@@ -381,16 +381,19 @@ F(t) = rand!(D, τ)
 
 #p = [100.0; 110.0; 300.0; -0.1319; 0.08; 0.0455]
 p = [100.0; 110.0; 300.0]
-dt = 0.1
-T = 0.0:dt:50.0
+dt = 0.5
+T = 0.0:dt:100.0
 Alist, blist, centerlist, XX, WW, E = propagation(A0, b0)
+
+X1 = [-0.867669 0.424193 -0.724589 0.0891227 -0.566023 0.533171 0.165779 0.133534 0.162905 0.136362 0.330577 -0.265571 0.149769; -0.155955 -0.533597 -0.592902 -0.259305 -0.414872 -0.684266 0.765449 0.741296 0.742576 0.76423 0.785231 0.256705 0.753666; -0.21185 -0.72438 -0.306241 -0.707095 -0.598655 -0.00531036 0.19716 0.180375 0.172504 0.205078 -0.477307 0.647897 0.188948; -0.421839 -0.102994 -0.172205 -0.651793 -0.38615 -0.497474 0.589688 0.632546 0.626326 0.596071 0.215195 0.666186 0.611437; 0.000865871 -0.0417582 -0.0693542 0.0284618 -0.0534286 0.0125363 0.128806 -0.169698 -0.0240661 -0.0168263 -0.0205178 -0.0203745 -0.0204462; -0.0802753 0.0346919 -0.0198842 -0.0256992 -0.015902 -0.0296814 -0.0264116 -0.0191718 0.180732 -0.226315 -0.0228442 -0.0227392 -0.0227917; -1.59085 -0.446703 -2.49188 0.454327 -0.433962 -1.60359 -1.01885 -1.01871 -1.01883 -1.01872 1625.06 -1627.09 -1.01878]
+X1[:, 11]
 
 #plot uncertainty evolution
 uncertainty(Alist)
 savefig("Uncertainty_1000_smallnoise_1st_scheme")
 
-Plots.scatter(T, centerlist[4, :])
-Plots.scatter!(T, centerlist[5, :])
+Plots.scatter(T, centerlist[1, :])
+Plots.scatter!(T, centerlist[2, :])
 Plots.scatter!(T, centerlist[6, :])
 Plots.scatter!(T, centerlist[4, :])
 savefig("1000_smallnoise_1st_scheme")
@@ -415,12 +418,12 @@ t_sim, y1 = rk4(sys, y_0, p, dt, t_span)
 
 #######Test ellispoid fit
 
-anim = @animate for j=200:1:250
+anim = @animate for j=50:1:80
     scatter(E[1, :, j], E[2, :, j], legend = false)
     angles = 0.0:0.01:2*pi
     B = zeros(2, length(angles))
     for i = 1:1:length(angles)
-        #B[:, i] = [cos(angles[i]) - blist[1, j+1], sin(angles[i]) - blist[2, j+1]]
+        B[:, i] = [cos(angles[i]) - blist[1, j+1], sin(angles[i]) - blist[2, j+1]]
         #B[:, i] = [cos(angles[i]), sin(angles[i])]
     end
     ellipse  = Alist[1:2, 1:2, j+1] \ B

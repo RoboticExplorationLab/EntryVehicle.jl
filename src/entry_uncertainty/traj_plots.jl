@@ -28,6 +28,23 @@ function plot_altitude(X, t_sim)
     title!("Spacecraft Altitude")
 end
 
+function plot_attack_angle(X, t_sim)
+    Re = 3389.5
+    n = length(t_sim)
+    α = zeros(n)
+    for i =1:1:n
+        q = X[4:7, i]
+        v = X[8:10, i]
+        r = X[1:3, i]
+        ω_mars = [0; 0; 7.095*10^(-5)]
+        v_rel = (v-cross(ω_mars, r*Re)) #velocity of spacecraft wrt atm
+        v_body = qrot(qconj(q), v_rel) #velocity of spacecraft wrt atm in body frame
+        α[i] = acos(v_body[3]/norm(v_body)) #radians
+        α[i] = α[i]*180/pi
+    end
+    Plots.plot(t_sim, α)
+end
+
 function plot_quaternions(X)
     Plots.plot(X[4, :])
     Plots.plot!(X[5, :])
@@ -38,10 +55,10 @@ function plot_quaternions(X)
     title!("Spacecraft Quaternions")
 end
 
-function plot_ang_vel(X)
-    Plots.plot(X[11, :])
-    Plots.plot!(X[12, :])
-    Plots.plot!(X[13, :])
+function plot_ang_vel(X, t_sim)
+    Plots.plot(t_sim, X[11, :])
+    Plots.plot!(t_sim, X[12, :])
+    Plots.plot!(t_sim, X[13, :])
     xlabel!("t [s]")
     ylabel!("Angular Velocity Components")
     title!("Spacecraft Angular Velocity")

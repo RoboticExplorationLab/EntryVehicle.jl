@@ -27,7 +27,7 @@ function duffing!(du,u,p,t)
     γ = 0.1 #p[4]
     ω = 1.0 #p[5]
     du[1] = u[2]
-    du[2] =  γ*p(t)-δ*u[2]-α*u[1]-β*u[1]^3 -1.0*(u[1])-1.0*(u[2]-2.0) +F(t)[1]
+    du[2] =  γ*p(t)-δ*u[2]-α*u[1]-β*u[1]^3 -1.0*(u[1])-1.0*(u[2]-2.0)+F(t)[1]
 end
 
 function duffing(u,p,t)
@@ -39,7 +39,7 @@ function duffing(u,p,t)
     γ = 0.1 #p[4]
     ω = 1.0 #p[5]
     du[1] = u[2]
-    du[2] =  γ*cos(t)-δ*u[2]-α*u[1]-β*u[1]^3-1.0*(u[1])-1.0*(u[2]-2.0) +F(t)[1]
+    du[2] =  γ*cos(t)-δ*u[2]-α*u[1]-β*u[1]^3 -1.0*(u[1])-1.0*(u[2]-2.0)+F(t)[1]
     return du
 end
 
@@ -261,7 +261,8 @@ a=1
 function step_elli(A1, b1, dtt, t)
     X1 = ellipse2points4(A1, b1)
     X2 = prop_points_rk(X1, dtt, t)
-    #A2, b2, obj = points2ellipse_mosek(X2)
+    #A2, b2 = points2ellipse_mosek(X2)
+    #@show(X2)
     A2, b2 = DRN_algo(X2)
     return X1, X2, A2, b2#, obj
 end
@@ -269,8 +270,8 @@ end
 a = 1
 
 function prop2(A1, b1)
-    dtt = 0.01
-    T = 0.0:dtt:50
+    dtt = 0.1
+    T = 0.0:dtt:200
     n = 2
     blist = zeros(n, length(T))
     Alist = zeros(n, n, length(T))
@@ -302,10 +303,10 @@ function prop2(A1, b1)
         #if obj <= 7.0 && t >=5.0
         #    return Alist, blist, centerlist, XX, E, OBJ, T
         #end
-        @show(X1)
-        @show(X2)
-        @show(A1)
-        @show(b1)
+        #@show(X1)
+        #@show(X2)
+        #@show(A1)
+        #@show(b1)
         blist[:, i] = b1
         Alist[:, :, i] = A1
         centerlist[:, i] = -inv(A1)*b1
@@ -332,18 +333,18 @@ tspan = (0.0,30.0)
 p = [-1.0; 1.0; 0.2; 0.1; 1.0]
 M  = t->cos(t)
 prob = ODEProblem(duffing!,u0,tspan, M)
-sol = DifferentialEquations.solve(prob, Rosenbrock23())
-Plots.plot(sol, vars=(1,2), legend = false)
+sol = DifferentialEquations.solve(prob)
+Plots.plot!(sol, vars=(1,2), legend = false)
 
 Plots.plot(sol, vars=(1))
-Plots.plot(sol, vars=(2))
+Plots.plot!(sol, vars=(2))
 t_sim, Z = rk4(duffing, [1.29; 0.057], p, 0.0001, [50.0;1000.0])
 Plots.plot(Z[:, 1], Z[:, 2])
 #savefig("Duffing")
 
 #Initialization
 u0 = [0.1; 10.0]
-Q0 = Matrix(Diagonal([0.01, 0.01]))
+Q0 = Matrix(Diagonal([0.1, 0.1]))
 A0 = inv(sqrt(Q0)) #matrix at t=0.0
 b0 = -A0*u0 #center at t=0.0
 
@@ -361,6 +362,7 @@ Alist8, blist8, centerlist8, XX8, E8, OBJ8, T8 = prop2(A0, b0)
 
 Alist[:, :, 7] - Alist[:, :, 7]'
 
+Plots.scatter(centerlist[2, :])
 plot_traj_center(T, centerlist)
 uncertainty(Alist)
 savefig("U_0.5sec")
@@ -369,7 +371,7 @@ Plots.savefig("freq_comput")
 
 a=1
 
-anim = @animate for j=1:500:27000
+anim = @animate for j=1:1:100
     angles = 0.0:0.01:2*pi
     B = zeros(2, length(angles))
     for i = 1:1:length(angles)
@@ -389,7 +391,7 @@ anim = @animate for j=1:500:27000
     #ylabel!("velocity")
     title!("Ellipse propagation step=$(j), OBJ=$(OBJ[j])")
 end
-gif(anim, "test_duffing_0.001_+control_more_uncertainty.gif", fps = 1)
+gif(anim, "test_duffing_essai.gif", fps = 1)
 
 #Ellipse fitting at different steps
 anim = @animate for j=1:1:200

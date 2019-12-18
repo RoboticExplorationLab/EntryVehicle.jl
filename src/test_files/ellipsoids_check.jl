@@ -18,7 +18,7 @@ gr()
 
 function sys!(du,u,p,t)
  du[1] = u[2]
- du[2] = -u[1]+F(t)[1]#+u[1]^2
+ du[2] = -u[1]#+F(t)[1]#+u[1]^2
 end
 
 u0 = [0.5;1.0]
@@ -187,8 +187,8 @@ function prop(A1, b1)
         @show(t)
         X1 = ellipse2points4(A1, b1) #return a set of points
         X2 = prop_points_continuous(X1, dt) #prop_points(X1, t, dt, u, w)
-        A2, b2, obj = points2ellipse_mosek(X2)
-        #A2, b2 = DRN_algo(X2)
+        #A2, b2, obj = points2ellipse_mosek(X2)
+        A2, b2 = DRN_algo(X2)
         blist[:, i] = b1
         Alist[:, :, i] = A1
         centerlist[:, i] = -inv(A1)*b1
@@ -216,7 +216,7 @@ Plots.plot([0.0:0.01:100.0], centerlist[2, :])
 
 a=1
 
-anim = @animate for j=1:50:1000
+anim = @animate for j=1:1:100
     angles = 0.0:0.01:2*pi
     B = zeros(2, length(angles))
     for i = 1:1:length(angles)
@@ -224,8 +224,8 @@ anim = @animate for j=1:50:1000
         #B[:, i] = [cos(angles[i]), sin(angles[i])]
     end
     ellipse  = Alist[1:2, 1:2, j] \ B
-    #Plots.plot(sol, vars=(1,2), legend = false)
-    scatter!([centerlist[1, j]],[centerlist[2, j]] )
+    Plots.plot!(sol, vars=(1,2), legend = false)
+    scatter([centerlist[1, j]],[centerlist[2, j]] )
     Plots.plot!(ellipse[1, :], ellipse[2, :], legend = false)
     #xlims!(-0.01, 0.01)
     #ylims!(-0.01, 0.01)
@@ -236,11 +236,11 @@ anim = @animate for j=1:50:1000
     #ylabel!("velocity")
     title!("Ellipse propagation step=$(j), OBJ=$(OBJ[j])")
 end
-gif(anim, "test_linear_system_noise.gif", fps = 1)
+gif(anim, "test_linear_system.gif", fps = 1)
 
 a = 1
 
-anim = @animate for j=300:1:400
+anim = @animate for j=1:1:100
     Plots.scatter(E[1, :, j], E[2, :, j], legend = false)
     angles = 0.0:0.01:2*pi
     B = zeros(2, length(angles))

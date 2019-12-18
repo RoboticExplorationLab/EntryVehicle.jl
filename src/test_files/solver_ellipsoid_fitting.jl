@@ -8,6 +8,8 @@ using MathProgBase
 using MathOptInterface
 using MosekTools
 gr()
+using PyPlot
+pyplot()
 
 #Solve Primal
 function gradient(H, X)
@@ -126,7 +128,7 @@ end
 
 function compute_M(M_inv_2)
     E = inv(M_inv_2)
-    @show(E)
+    #@show(E)
     FF = eigen(E)
     W = FF.vectors
     D = Diagonal(FF.values)
@@ -135,10 +137,17 @@ function compute_M(M_inv_2)
     return Symmetric(M)
 end
 
-function obj(u, X)
+function obj(u, X, μ, s)
+    n, m = size(X)
     M_inv_2 = compute_M_inv_2(u, X)
     M = compute_M(M_inv_2)
-    return -logdet(M)
+    return -logdet(M)-μ*sum(log(s[i]) for i=1:1:m)
+end
+
+function grad_obj(u, X)
+    M_inv_2 = compute_M_inv_2(u, X)
+    M = compute_M(M_inv_2)
+    return -inv(M)
 end
 
 function compute_z(u, X, M)
@@ -162,22 +171,43 @@ end
 
 a = 1
 
-function backstep_line_search(u, s, Δu, Δs, X)
-    obj_bef = obj(u, X)
+function suff_decrease_condition(u, Δu, X, α)
+    u_new = u + α*Δu
+    obj_new = obj(u_new, X)
+    obj_old = obj(u, X)
+    grad = grad_obj(u, X)
+    c1 = 1e-4
+    return (obj_new>obj_old+α*c1*(grad')*Δu)
+end
+
+a=1
+
+function curv_condition(u, Δu, X, α)
+    u_new = u+α*Δu
+    grad_old = grad_obj(u, X)
+    grad_new = grad_obj(u_new, X)
+    c2 = 0.9
+    return (grad_new'*Δu<c2*grad_old*Δu)
+end
+
+a=1
+
+function backstep_line_search(u, s, Δu, Δs, X, μ)
+    obj_bef = obj(u, X, μ, s)
     α = 1.0
     u_new = u + α*Δu
     s_new = s + α*Δs
-    obj_new = obj(u_new, X)
-    @show(obj_bef)
-    while #=obj_new >= obj_bef ||=# is_non_positive_vector(u_new) || is_non_positive_vector(s_new)
+    obj_new = 100.0
+    #@show(obj_bef)
+    while #=suff_decrease_condition(u, Δu, X, α) || curv_condition(u, Δu, X, α)=# is_non_positive_vector(u_new) || is_non_positive_vector(s_new) || obj_new >= obj_bef
         α = α/2
-        @show(α)
+        #@show(α)
         u_new = u + α*Δu
         s_new = s + α*Δs
-        obj_new = obj(u_new, X)
-        @show(is_non_positive_vector(u_new))
-        @show(is_non_positive_vector(s_new))
-        @show(obj_new)
+        obj_new = obj(u_new, X, μ, s_new)
+        #@show(is_non_positive_vector(u_new))
+        #@show(is_non_positive_vector(s_new))
+        #@show(obj_new)
     end
     return α
 end
@@ -191,24 +221,25 @@ function DRN_algo(X)
     α_ini = 1.0
     u_0 = α_ini*ones(m)
     s_0 = α_ini*ones(m)
+    μ = 1.0
     u, s = u_0, s_0
-    ϵ1 = 10^(-9)
+    ϵ1 = 10^(-3)
     ϵ2 = 10^(-9)
     i = 0
-    while norm(e-compute_h(u, X)-s) > ϵ1 || (u'*s/obj(u, X)) > ϵ2
-        @show(i)
+    while norm(e-compute_h(u, X)-s) > ϵ1 || (u'*s/obj(u, X, μ, s)) > ϵ2
+        #@show(i)
         μ = (u'*s)/(10*m)
         Δu, Δs = DRN_direction(u, s, μ, X)
         #@show(u)
         #@show(compute_M(u, X))
-        @show(obj(u, X))
-        α = backstep_line_search(u, s, Δu, Δs, X)
-        α = minimum([r*α; 1.0])
+        #@show(obj(u, X))
+        α = backstep_line_search(u, s, Δu, Δs, X, μ)
+        #α = minimum([r*α; 1.0])
         #α = 0.5
         u = u + α*Δu
         s = s + α*Δs
-        @show(is_non_positive_vector(u))
-        @show(is_non_positive_vector(s))
+        #@show(is_non_positive_vector(u))
+        #@show(is_non_positive_vector(s))
         i +=1
     end
     M_inv_2 = compute_M_inv_2(u, X)
@@ -218,7 +249,7 @@ function DRN_algo(X)
 end
 
 D1 = Uniform(-4, 5)
-D2 = Uniform(1.0, 1.0001)
+D2 = Uniform(1.0, 10.0)
 x1 = zeros(1, 15)
 x2 = zeros(1, 15)
 rand!(D1, x1)
@@ -228,10 +259,17 @@ rank([X; ones(15)'])
 
 X = [-4.3 -4.3 2.0 2.0; 1.0 1.0 0.5 0.5]
 
+#Break Case - test with 1e-9 on both conditions.
+X2 = [1.24532 1.24564 1.24574 1.24523; 0.0279939 0.0274676 0.0270402 0.0284213]
+X2 = [1.24532 1.24564 1.24574 1.24523; 0.0279939 0.0274676 0.0270402 0.0284213]
+
+gr()
+Plots.scatter(X2[1, :], X2[2, :])
+
 n, m = size(X);
 Plots.scatter(X[1, :], X[2, :])
 
-M, z = DRN_algo(X)
+M, z = DRN_algo(X2)
 
 angles = 0.0:0.01:2*pi
 B = zeros(2, length(angles))
@@ -245,8 +283,8 @@ function test_DRN(N)
     for i=1:1:N
         D1 = Uniform(-4, 5)
         D2 = Uniform(1.0, 10.0)
-        x1 = zeros(1, 15)
-        x2 = zeros(1, 15)
+        x1 = zeros(1, 4)
+        x2 = zeros(1, 4)
         rand!(D1, x1)
         rand!(D2, x2)
         X = vcat(x1, x2)
@@ -255,7 +293,18 @@ function test_DRN(N)
     return 0.0
 end
 
-test_DRN(10000) #okay 4 min for 10000 problem
+test_DRN(100) #okay 4 min for 10000 problem
+
+using ForwardDiff
+M = test_FD(ones(15))
+ForwardDiff.jacobian(test_FD, ones(15))
+
+
+function test_FD(u)
+    M_inv_2 = compute_M_inv_2(u, X)
+    M = inv(sqrt(M_inv_2))
+    return M
+end
 
 
 a=1
@@ -283,7 +332,7 @@ function points2ellipse_mosek(X)
     return A, b, obj
 end
 
-A, b = points2ellipse_mosek(X)
+A, b = points2ellipse_mosek(X2)
 
 angles = 0.0:0.01:2*pi
 B = zeros(2, length(angles))

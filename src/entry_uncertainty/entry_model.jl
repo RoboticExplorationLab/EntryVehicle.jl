@@ -192,11 +192,14 @@ function dyna_coeffoff(t, x, u)
     #Compute aerodnyamic forces
     ω_mars = [0; 0; 7.095*10^(-5)]
     v_rel = (v-cross(ω_mars, r*Re)) #velocity of spacecraft wrt atm
+    #@show(v_rel)
     v_body = qrot(qconj(q), v_rel) #velocity of spacecraft wrt atm in body frame
-    @show(v_body)
+    #@show(qconj(q))
+    #@show(v_body)
     α = acos(v_body[3]/norm(v_body)) #radians
-    #@show(α)
+    #@show(α*180/pi)
     α = floor(Int, α*180/pi)+1 #degrees
+    #@show(α)
 
     CF = table_CF[α, :]
     Cτ = table_Cτ[α, :]
@@ -207,7 +210,7 @@ function dyna_coeffoff(t, x, u)
 
     #controller stuff
     q_ref = Q
-    kd = 10.0 #30.0
+    kd = 0.5 #30.0
     kp = -5.0 #-20.0
     q_err = qmult(qconj(q), q_ref) #perfect measurements
     τ_c = -kd*(ω)-kp*q_err[2:4]
@@ -227,9 +230,12 @@ function dyna_coeffoff(t, x, u)
      J2*r[2]/norm(r)^7*(6*r[3]-1.5*(r[1]^2+r[2]^2));
      J2*r[3]/norm(r)^7*(3*r[3]-4.5*(r[1]^2+r[2]^2))]
 
+    #Σ = [0.01 0.0 0.0; 0.0 0.01 0.0; 0.0 0.0 0.01] #covariance matrix
+    #μ = [0.0;0.0;0.0]
+    #D = MvNormal(μ, Σ)
     Cp = 0.5 #pitch damping coefficient
     F_total_eci = F_grav_eci + F_aero_eci + F_J2_eci
-    τ_total_body = τ_aero_body - Cp*[ω[1:2]; 0.0] + [0.0;0.0;u[1]] + τ_c#computed at COM #[0.0;0.0;0.0]
+    τ_total_body = τ_aero_body #- Cp*[ω[1:2]; 0.0] #=+ τ_c=# #+rand!(D, zeros(3))#computed at COM #[0.0;0.0;0.0]
 
     ẋ[1:3] = v/Re
     ẋ[4:7] = 0.5*qmult(q, [0; ω])
@@ -308,14 +314,17 @@ function dyna_coeffoff_inplace!(du, u, p, t) #For DiffEq
      J2*r[3]/norm(r)^7*(3*r[3]-4.5*(r[1]^2+r[2]^2))]
 
      q_ref = Q
-     kd = 10.0 #30.0
+     kd = 0.5 #30.0
      kp = -5.0 #-20.0
      q_err = qmult(qconj(q), q_ref) #perfect measurements
      τ_c = -kd*(ω)-kp*q_err[2:4]
 
-    Cp = 0.8 #pitch damping coefficient
+    Σ = [0.01 0.0 0.0; 0.0 0.01 0.0; 0.0 0.0 0.01] #covariance matrix
+    μ = [0.0;0.0;0.0]
+    D = MvNormal(μ, Σ)
+    Cp = 0.5 #pitch damping coefficient
     F_total_eci = F_grav_eci + F_aero_eci + F_J2_eci
-    τ_total_body = τ_aero_body - Cp*[ω[1:2]; 0.0] + [0.0;0.0;0.0] + τ_c #computed at COM #[0.0;0.0;0.0]
+    τ_total_body = τ_aero_body #=-Cp*[ω[1:2]; 0.0]=# + [0.0;0.0;0.0] + τ_c + rand!(D, zeros(3)) #computed at COM #[0.0;0.0;0.0]
 
     du[1:3] = v/Re
     du[4:7] = 0.5*qmult(q, [0; ω])

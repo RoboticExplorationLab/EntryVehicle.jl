@@ -162,12 +162,12 @@ function prop_MC_entry(X_samples, t_start, t_end, dt)
     return traj
 end
 
-x_0 = [(3389.5+125)/Re, 0.0, 0.0, Q[1], Q[2], Q[3], Q[4], -3.0, 5.0, 0.0, 0.0, 0.0, 0.0]
+x_0 = [(3389.5+125)/Re, 0.0, 0.0, Q[1], Q[2], Q[3], Q[4], 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
 Q = Diagonal(0.00001*ones(13))
 X_samples = generate_samples(x_0, Q, 100)
 t_start = 0.0
 dt = 0.01
-t_end = 300.0
+t_end = 50.0
 traj = prop_MC_entry(X_samples, t_start, t_end, dt)
 
 plot_traj2(traj[:, :, 11])

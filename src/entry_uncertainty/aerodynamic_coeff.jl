@@ -145,5 +145,5 @@ r_G = [0.2; 0.0; 0.3]
 t1, t2 = table_aero(δ, r_min, r_cone, r_G)
 table_CF, table_Cτ = table_aero_spherecone(δ, r_min, r_cone, r_G)
 
-α = 0.0:1.0:359.0
-plot(α, table_CF[:, 2]) =#
+α = 0.0:1.0:180.0
+Plots.scatter(α, t1[1:181, 2]) =#
