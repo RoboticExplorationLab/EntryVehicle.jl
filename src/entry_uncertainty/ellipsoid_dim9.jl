@@ -5,7 +5,6 @@ using Mosek
 using LinearAlgebra
 using Plots
 using DifferentialEquations
-using ODE
 using PyPlot
 using Mosek
 using MathOptInterface
@@ -93,7 +92,7 @@ end
 
 a=1
 
-function plot_traj_center(centerlist)
+function plot_traj_center(centerlist, T)
     X = zeros(length(T))
     Y = zeros(length(T))
     for j=1:length(T)
@@ -103,38 +102,14 @@ function plot_traj_center(centerlist)
     Plots.scatter(X, Y)
 end
 
-function rk4(f, y_0, u, dt, t_span)
-    T = t_span[1]:dt:t_span[end]
-    y = zeros(length(T), length(y_0))
-    if length(y_0) == 1
-        y[1, :] = [y_0]
-    else
-        y[1, :] = y_0
-    end
-    for i=1:1:length(T)-1
-        t = T[i]
-        y_star = y[i, :]
-        k1 = f(t, y_star, u)
-        y1 = y_star+k1*dt/2 #intermediate evaluation value
-        k2 = f(t+dt/2, y1, u)
-        y2 = y_star+k2*dt/2
-        k3 = f(t+dt/2, y2, u)
-        y3 = y_star+k3*dt
-        k4 = f(t+dt, y3, u)
-        m = (k1+2*k2+2*k3+k4)/6 #slope average
-        y[i+1, :] = y_star + m*dt
-    end
-    return T, y
-end
-
-function prop_points_last(X, t, dt, u, w)
+function prop_points_rk(X, t, dt, u, w)
     m = length(X[1, :])
     Xnew = zeros(size(X))
     for i=1:1:m
-        t_sim, Z = rk4(dyna_coeffoff, X[:, i], u, 0.01, [t, t+dt])#integration2(dyna_coeffoff_inplace!, X[:, i], dt)
+        t_sim, Z = rk4(dyna_coeffoff, X[:, i], u, 0.01, [0.0, dt])#integration2(dyna_coeffoff_inplace!, X[:, i], dt)
         #rk4(dyna_coeffoff, X[:, i], u, 0.001, [0.0, dt])
         @show(i)
-        Xnew[:, i] = Z[end, :]
+        Xnew[:, i] = Z[:, end]
     end
     return Xnew
 end
@@ -160,19 +135,13 @@ Q = mat2quat(M)
 Q = qconj(Q)
 x0 = [(3389.5+125)/Re; 0.0; 0.0; Q[1]; Q[2]; Q[3]; Q[4]; 0.0; 1.0; 0.0; 0.0; 0.0; 0.0] #okay in dimension 13: center at t=0
 x0_9 = [(3389.5+125)/Re; 0.0; 0.0; 0.0;0.0;0.0;0.0; 1.0; 0.0]
-Q0 = Diagonal(0.00000001*ones(12)) #here we assume the change in a(vector part of the change in quaternion)
-Q0 = Diagonal([(0.1/Re)^2;(0.1/Re)^2;(0.1/Re)^2;0.005^2; 0.005^2; 0.005^2;(1e-5)^2;(1e-5)^2;(1e-5)^2]) #here we assume the change in a(vector part of the change in quaternion)
+Q0 = Diagonal([(0.05/Re)^2;(0.05/Re)^2;(0.05/Re)^2;0.005^2; 0.005^2; 0.005^2;(1e-5)^2;(1e-5)^2;(1e-5)^2]) #here we assume the change in a(vector part of the change in quaternion)
 
 #Diagonal([0.1/Re; 0.1/Re; 0.1/Re; 0.01; 0.01; 0.01; 0.01; 0.0001; 0.0001; 0.0001; 0.01; 0.01; 0.01])
 Q0 = Matrix(Q0)
 
 A1 = inv(sqrt(Q0))
 b1 = -A1*x0_9
-
-Δt = 280.0 #length simulation
-dt = 1.0
-T = 0.0:dt:Δt
-#T = t_sim_nom
 
 u = [0.0]
 w = [0.0158*10^9; 0.0; 0.0; 0.0]
@@ -183,10 +152,14 @@ r_cone = 1.3
 r_G = [0.2; 0.0; 0.3]
 table_CF, table_Cτ = table_aero_spherecone(δ, r_min, r_cone, r_G)
 
+table_CF, table_Cτ = table_aero(δ, 0.0, 1.3, r_G)
+
 a=1
 
+
+
 function propagation(A1, b1)
-    Δt = 280.0
+    Δt = 290.0
     dtt = 1.0
     T = 0.0:dtt:Δt
     Re = 3389.5
@@ -206,7 +179,7 @@ function propagation(A1, b1)
         t = T[i]
         @show(t)
         X1 = ellipse2points(A1, b1, x0) #return a set of points in dim 13
-        X2 = prop_points_last(X1, t, dtt, u, w)
+        X2 = prop_points_rk(X1, t, dtt, u, w)
         x1 = X2[:, end]
         X_9, x0 = points13_9(X2, x1)
         A2, b2 = points2ellipse_mosek(X_9)
@@ -218,7 +191,7 @@ function propagation(A1, b1)
         XX[:, :, i] = X1
         x0 = x1
     end
-    return Alist, blist, centerlist, XX
+    return Alist, blist, centerlist, XX, T
 end
 
 function X_lims(X)
@@ -230,9 +203,32 @@ function X_lims(X)
     return lim
 end
 
-Alist, blist, centerlist, XX = propagation(A1, b1)
+function var_points(X)
+    n, m = size(X)
+    X_avg = (1/m)*sum(X[:, i] for i=1:1:m)
+    var = (1/m)*(sum((X[:, i]-X_avg)*(X[:, i]-X_avg)' for i=1:1:m))
+    sig = sqrt(var)
+    return var
+end
 
-plot_traj_center(centerlist)
-Plots.plot(centerlist[7, :])
+Alist, blist, centerlist, XX, T = propagation(A1, b1)
+
+plot_traj_center(centerlist, T)
+Plots.plot(centerlist[4, :])
 X_lims(XX[:, :, end])
 uncertainty(Alist)
+
+var = var_points(XX[:, :, end])
+
+oe2eci([3389.5+125; 0.000001; 45.0; 1.0; 1.0; 40.0])
+x0s = [2623.5; 1676.43; 1630.38; Q; -3.32; 0.82; 0.86; 0.0; 0.0; 0.0]
+
+x0 = [(3389.5+125)/3389.5; 0.0; 0.0; Q[1]; Q[2]; Q[3]; Q[4]; -1.0; 2.0; 0.0; 0.0; 0.0; 0.0]
+t_sim4, Z4 = rk4(dyna_coeffoff_COM_on_axis, x0, [0.0], 0.01, [0.0, 150.0])
+
+plot_ang_vel(Z4, t_sim4)
+plot_altitude(Z4, t_sim4)
+plot_quaternions(Z4)
+plot_traj(Z4)
+
+plot_attack_angle(Z4, t_sim4)

@@ -99,6 +99,7 @@ function plot_traj_center(centerlist)
     Plots.scatter(X, Y)
 end
 
+#=
 function rk4(f, y_0, u, dt, t_span)
     T = t_span[1]:dt:t_span[end]
     y = zeros(length(T), length(y_0))
@@ -121,16 +122,16 @@ function rk4(f, y_0, u, dt, t_span)
         y[i+1, :] = y_star + m*dt
     end
     return T, y
-end
+end =#
 
-function prop_points_last(X, dt, u, w)
+function prop_points_rk(X, dt, u, w)
     m = length(X[1, :])
     Xnew = zeros(size(X))
     for i=1:1:m
         t_sim, Z = rk4(dyna_coeffoff, X[:, i], u, 0.01, [0.0, dt])#integration2(dyna_coeffoff_inplace!, X[:, i], dt)
         #rk4(dyna_coeffoff, X[:, i], u, 0.001, [0.0, dt])
         @show(i)
-        Xnew[:, i] = Z[end, :]
+        Xnew[:, i] = Z[:, end]
     end
     return Xnew
 end
@@ -165,7 +166,7 @@ Q0 = Matrix(Q0)
 A1 = inv(sqrt(Q0))
 b1 = -A1*x0_6
 
-Δt = 280.0 #length simulation
+Δt = 300.0 #length simulation
 dt = 1.0
 T = 0.0:dt:Δt
 #T = t_sim_nom
@@ -199,7 +200,7 @@ function propagation(A1, b1)
         t = T[i]
         @show(t)
         X1 = ellipse2points(A1, b1, x0) #return a set of points in dim 13
-        X2 = prop_points_last(X1, dt, u, w)
+        X2 = prop_points_rk(X1, dt, u, w)
         X_6, x0 = points13_6(X2)
         A2, b2 = points2ellipse_mosek(X_6)
         blist[:, i] = b1
@@ -238,3 +239,15 @@ plot_traj(Z4')
 
 plot_attack_angle(Z4', t_sim4)
 plot_vel(Z4', t_sim4)
+
+j = 1000
+angles = 0.0:0.01:2*pi
+B = zeros(2, length(angles))
+for i = 1:1:length(angles)
+    B[:, i] = [cos(angles[i]); sin(angles[i])]
+end
+
+ellipse  = Alist[1:2, 1:2, j] \ B
+Plots.plot!(ellipse[1, :].+centerlist[1, j], ellipse[2, :].+centerlist[2, j])
+scatter!([centerlist[1, j]],[centerlist[2, j]] )
+scatter!(XX[1, :, j], XX[2, :, j])

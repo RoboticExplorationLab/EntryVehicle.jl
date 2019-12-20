@@ -42,6 +42,7 @@ include("marsgram_wrapper.jl")
 r_cone = 1.3
 r_min = 0.2
 r_G = [0.2; 0.0; 0.3]
+r_G_on_axis = [0.0; 0.0; 0.3]
 table_CF, table_Cτ = table_aero_spherecone(δ, r_min, r_cone, r_G)
 
 ####################################
@@ -55,8 +56,8 @@ M = [-sin(θ) cos(θ) 0.0;
      cos(θ) sin(θ) 0.0]
 Q = mat2quat(M) #CHANGE THAT
 Q = qconj(Q)
-x0 = [(3389.5+125)/Re, 0.0, 0.0, Q[1], Q[2], Q[3], Q[4], 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
-Δt = 280.0
+x0 = [(3389.5+125)/Re, 0.0, 0.0, Q[1], Q[2], Q[3], Q[4], -1.0, 7.0, 0.0, 0.0, 0.0, 0.0]
+Δt = 400.0
 
 ####################################
 ######Uncertainty Parameters########
@@ -89,8 +90,7 @@ t_sim4, Z4 = rk4(dyna_coeffoff, x0, [0.0], 0.01, [0.0, Δt]) #really good
 #    0.0 -1.0 0.0]
 QQ = [0.707107;-0.707107; -0.0; -0.0] #Q_image2model
 
-animate_traj(t_sim, Z)
-
+animate_traj(t_sim4, Z4)
 
 ####################################
 #####State Variables - 2D Plots#####
@@ -100,7 +100,7 @@ plot_traj(Z4)
 #Plots.savefig("1")
 plot_altitude(Z4, t_sim4)
 #Plots.savefig("2")
-plot_vel(Z, t_sim)
+plot_vel(Z4, t_sim4)
 #Plots.savefig("3")
 plot_quaternions(Z4, t_sim4)
 #savefig("4")
@@ -108,7 +108,9 @@ plot_ang_vel(Z4, t_sim4)
 #savefig("5")
 norm_quaternions(Z4, t_sim4)
 
-plot_traj3D(Z)
+plot_attack_angle(Z4, t_sim4)
+
+plot_traj3D(Z4)
 
 
 ####################################

@@ -119,3 +119,20 @@ function plot_sphere(n, Re)
     z = Re*ones(n).*cos.(v)'
     Plots.plot!(x, y, z, color = :brown, legend = false)
 end
+
+function plot_attack_angle(X, t_sim)
+    Re = 3389.5
+    n = length(t_sim)
+    α = zeros(n)
+    for i =1:1:n
+        q = X[4:7, i]
+        v = X[8:10, i]
+        r = X[1:3, i]
+        ω_mars = [0; 0; 7.095*10^(-5)]
+        v_rel = (v-cross(ω_mars, r*Re)) #velocity of spacecraft wrt atm
+        v_body = qrot(qconj(q), v_rel) #velocity of spacecraft wrt atm in body frame
+        α[i] = acos(v_body[3]/norm(v_body)) #radians
+        α[i] = α[i]*180/pi
+    end
+    Plots.plot(t_sim, α)
+end

@@ -91,7 +91,7 @@ end
 a=1
 
 function eci2oe(r_eci, v_eci)
-    mu = 398600.4418 #42828.37; #[km3.s-2]
+    mu = 42828.37 #398600.4418 42828.37; #[km3.s-2]
     v_norm = norm(v_eci);
     r_norm = norm(r_eci);
     h = cross(r_eci, v_eci); #vector h here
@@ -162,7 +162,7 @@ end
 
 
 #test space
-using LinearAlgebra
+#=using LinearAlgebra
 r_ECI_0 = [-2827.4;-8916.9; -2340.8]; #[km]
 v_ECI_0 = [4.6567; 3.2251; -5.9629]; #[km.s-1]
-X = eci2oe(r_ECI_0, v_ECI_0)
+X = eci2oe(r_ECI_0, v_ECI_0)=#
