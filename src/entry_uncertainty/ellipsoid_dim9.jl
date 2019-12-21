@@ -106,7 +106,7 @@ function prop_points_rk(X, t, dt, u, w)
     m = length(X[1, :])
     Xnew = zeros(size(X))
     for i=1:1:m
-        t_sim, Z = rk4(dyna_coeffoff, X[:, i], u, 0.01, [0.0, dt])#integration2(dyna_coeffoff_inplace!, X[:, i], dt)
+        t_sim, Z = rk4(dyna_coeffoff_COM_on_axis, X[:, i], u, 0.01, [0.0, dt])#integration2(dyna_coeffoff_inplace!, X[:, i], dt)
         #rk4(dyna_coeffoff, X[:, i], u, 0.001, [0.0, dt])
         @show(i)
         Xnew[:, i] = Z[:, end]
@@ -127,15 +127,15 @@ end
 
 
 Re = 3389.5
-θ = 91*pi/180 #rotation angle about z-axis
+θ = 270*pi/180 #rotation angle about z-axis
 M = [-sin(θ) cos(θ) 0.0;
      0.0 0.0 1.0;
      cos(θ) sin(θ) 0.0]
 Q = mat2quat(M)
 Q = qconj(Q)
-x0 = [(3389.5+125)/Re; 0.0; 0.0; Q[1]; Q[2]; Q[3]; Q[4]; 0.0; 1.0; 0.0; 0.0; 0.0; 0.0] #okay in dimension 13: center at t=0
-x0_9 = [(3389.5+125)/Re; 0.0; 0.0; 0.0;0.0;0.0;0.0; 1.0; 0.0]
-Q0 = Diagonal([(0.05/Re)^2;(0.05/Re)^2;(0.05/Re)^2;0.005^2; 0.005^2; 0.005^2;(1e-5)^2;(1e-5)^2;(1e-5)^2]) #here we assume the change in a(vector part of the change in quaternion)
+x0 = [(3389.5+125)*1e3; 0.0; 0.0; Q[1]; Q[2]; Q[3]; Q[4]; 0.0; 1.0*1e3; 0.0; 0.0; 0.0; 0.0] #okay in dimension 13: center at t=0
+x0_9 = [(3389.5+125)*1e3; 0.0; 0.0; 0.0;0.0;0.0;0.0;1.0*1e3; 0.0]
+Q0 = Diagonal([(100)^2;(100)^2;(100)^2;0.005^2; 0.005^2; 0.005^2;1.0;1.0;1.0]) #here we assume the change in a(vector part of the change in quaternion)
 
 #Diagonal([0.1/Re; 0.1/Re; 0.1/Re; 0.01; 0.01; 0.01; 0.01; 0.0001; 0.0001; 0.0001; 0.01; 0.01; 0.01])
 Q0 = Matrix(Q0)
@@ -159,17 +159,17 @@ a=1
 
 
 function propagation(A1, b1)
-    Δt = 290.0
+    Δt = 100.0
     dtt = 1.0
     T = 0.0:dtt:Δt
-    Re = 3389.5
-    θ = 91*pi/180 #rotation angle about z-axis
+    Re = 3389.5*1e3
+    θ = 270*pi/180 #rotation angle about z-axis
     M = [-sin(θ) cos(θ) 0.0;
          0.0 0.0 1.0;
          cos(θ) sin(θ) 0.0]
     Q = mat2quat(M)
     Q = qconj(Q)
-    x0 = [(3389.5+125)/Re; 0.0; 0.0; Q[1]; Q[2]; Q[3]; Q[4]; 0.0; 1.0; 0.0; 0.0; 0.0; 0.0]
+    x0 = [(3389.5+125)*1e3; 0.0; 0.0; Q[1]; Q[2]; Q[3]; Q[4]; 0.0; 1.0*1e3; 0.0; 0.0; 0.0; 0.001]
     n=9
     blist = zeros(n, length(T))
     Alist = zeros(n, n, length(T))
@@ -214,7 +214,7 @@ end
 Alist, blist, centerlist, XX, T = propagation(A1, b1)
 
 plot_traj_center(centerlist, T)
-Plots.plot(centerlist[4, :])
+Plots.plot(centerlist[9, :])
 X_lims(XX[:, :, end])
 uncertainty(Alist)
 

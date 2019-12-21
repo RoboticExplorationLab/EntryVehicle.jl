@@ -37,7 +37,6 @@ end
 
 #Aerodynamics Coefficients
 
-
 function compute_chebyshev_coefficients_aerodynamics(α, table, order)
     # We approximate this data using a Chebyshev polynomial.
     # Note that an evenly spaced grid suffers from instability for large n.

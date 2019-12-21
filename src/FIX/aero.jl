@@ -142,9 +142,6 @@ function drag_lift_table(δ, r_min, r_cone, r_G)
     return table_CD, table_CL
 end
 
-a = 1
-
-
 #=test space
 δ = 70*pi/180
 r_min = 0.09144*cos(δ)

@@ -2,11 +2,14 @@
 
 using LinearAlgebra
 using Plots
+using ApproxFun
+using Libdl
 
 include("aero.jl")
 include("dyna.jl")
 include("quaternions.jl")
 include("traj_plots.jl")
+include("interpolation.jl")
 
 a=1
 
@@ -34,15 +37,30 @@ function rk4(f, y_0, p, dt, t_span)
     return T, y'
 end
 
-
-δ = 70*pi/180
+δ =70*pi/180
 r_min = 0.2
 r_cone = 1.3
-r_G = [0.0; 0.0; 0.3]
+r_G = [0.011; 0.0; -0.1]
 table_CF, table_Cτ = table_aero_spherecone(δ, r_min, r_cone, r_G)
 
+α = 0.0:1.0:181.0
+tableFX = table_CF[:,1]
+tableFY = table_CF[:,2]
+tableFZ = table_CF[:,3]
+tableτX = table_Cτ[:,1]
+tableτY = table_Cτ[:,2]
+tableτZ = table_Cτ[:,3]
+order = 14
+C_FX = compute_chebyshev_coefficients_aerodynamics(α, tableFX[1:182], order)
+C_FY = compute_chebyshev_coefficients_aerodynamics(α, tableFY[1:182], order)
+C_FZ = compute_chebyshev_coefficients_aerodynamics(α, tableFZ[1:182], order)
+C_τX = compute_chebyshev_coefficients_aerodynamics(α, tableτX[1:182], order)
+C_τY = compute_chebyshev_coefficients_aerodynamics(α, tableτY[1:182], order)
+C_τZ = compute_chebyshev_coefficients_aerodynamics(α, tableτZ[1:182], order)
 
-θ = 91.0*pi/180 #rotation angle about z body axis
+
+
+θ = 270.0*pi/180 #rotation angle about z body axis
 M = [-sin(θ) cos(θ) 0.0;
      0.0 0.0 1.0;
      cos(θ) sin(θ) 0.0]
@@ -66,8 +84,9 @@ M = hcat(x_b, y_b, z_b)
 Q = mat2quat(M)
 Q = qconj(Q)
 
-x0 = [(3389.5+125)*1e3; 0.0; 0.0; Q[1]; Q[2]; Q[3]; Q[4]; v_eci; 0.0; 0.0; 0.0]
-t_sim4, Z4 = rk4(dyna_coeffoff_COM_on_axis, x0, [0.0], 0.01, [0.0, 280.0])
+v_eci = [0.0; 2.0; 0.0]*1e3
+x0 = [(3389.5+125)*1e3; 0.0; 0.0; Q[1]; Q[2]; Q[3]; Q[4]; v_eci; 0.0; 0.001; 0.001]
+t_sim4, Z4 = rk4(dyna_coeffoff_COM_on_axis, x0, [0.0], 0.01, [0.0, 300.0])
 
 plot_traj(Z4)
 plot_altitude(Z4, t_sim4)

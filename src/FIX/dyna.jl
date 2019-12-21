@@ -1,7 +1,7 @@
 function dyna_coeffoff_COM_on_axis(t, x, u)
     ẋ = zeros(13)
 
-    @show(t)
+    #@show(t)
 
     m_cone = 200.0 #kg
     m_p = 400.0 #kg
@@ -38,7 +38,7 @@ function dyna_coeffoff_COM_on_axis(t, x, u)
     v = x[8:10]
     ω = x[11:13]
 
-    if norm(r) > Re
+    if norm(r) > 3389.5*1e3
 
     #Compute aerodnyamic forces
     ω_mars = [0; 0; 7.095*10^(-5)] #rad.s-1
@@ -46,16 +46,35 @@ function dyna_coeffoff_COM_on_axis(t, x, u)
     v_rel = (v-cross(ω_mars, r)) #velocity of spacecraft wrt atm
     v_body = qrot(qconj(q), v_rel) #velocity of spacecraft wrt atm in body frame
     α = acos(v_body[3]/norm(v_body)) #radians
-    α = floor(Int, α*180/pi)+1 #degrees
-    @show(v_body)
-    @show(α-1)
+    if α != 0.0 && abs(v_body[1]/(norm(v_body)*sin(α))) <= 1.0
+            β = acos(v_body[1]/(norm(v_body)*sin(α)))
+    else
+            β = 0.0
+    end
+    #α = floor(Int, α*180/pi)+1 #degrees
+    #@show(v_body)
+    #@show(α-1)
 
-    CF = table_CF[α, :]
-    Cτ = table_Cτ[α, :]
+    q_v_b = [cos(β/2); 0.0; 0.0; sin(β/2)]
+
+    α = α*180/pi
+
+    #@show(α)
+    #@show(β*180/pi)
+
+    CF = [table_aero_chebyshev(α, 0.0, 181.0, C_FX);
+        table_aero_chebyshev(α, 0.0, 181.0, C_FY);
+        table_aero_chebyshev(α, 0.0, 181.0, C_FZ)]
+
+    Cτ = [table_aero_chebyshev(α, 0.0, 181.0, C_τX);
+        table_aero_chebyshev(α, 0.0, 181.0, C_τY);
+        table_aero_chebyshev(α, 0.0, 181.0, C_τZ)]
+
     h = (norm(r)-Re)
-    F_aero_body = -0.5*exponential_atmosphere(h)*((norm(v_rel))^2)*CF*A_ref
-    τ_aero_body = -0.5*exponential_atmosphere(h)*((norm(v_rel))^2)*Cτ*A_ref*L_ref
-    F_aero_eci = qrot(q, F_aero_body)
+    F_aero_v = -0.5*exponential_atmosphere(h)*((norm(v_rel))^2)*CF*A_ref
+    τ_aero_v = -0.5*exponential_atmosphere(h)*((norm(v_rel))^2)*Cτ*A_ref*L_ref
+    F_aero_eci = qrot(qmult(q, q_v_b), F_aero_v)
+    τ_aero_body = qrot(q_v_b, τ_aero_v)
 
     #controller stuff
     q_ref = Q
