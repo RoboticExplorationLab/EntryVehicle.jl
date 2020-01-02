@@ -7,9 +7,9 @@ function dyna_coeffoff_COM_on_axis(t, x, u)
     m_p = 400.0 #kg
     m = m_p + m_cone #total mass in kg
     mu = 4.282837*1e13 #m^3.s-2  #42828.37 #km^3.s-2
-    r_G = [0.0;0.0;0.3] #COM in body frame of global spacecraft m
+    #r_G = [0.0;0.0;0.3] #COM in body frame of global spacecraft m
     δ = 70*pi/180 #radians
-    r_cone = 1.3 #m
+    r_cone = 1.325 #m
     h_cone = r_cone/tan(δ) #m
     Re = 3389.5*1e3 #m
     A_ref = pi*r_cone^2 #m2
@@ -46,11 +46,28 @@ function dyna_coeffoff_COM_on_axis(t, x, u)
     v_rel = (v-cross(ω_mars, r)) #velocity of spacecraft wrt atm
     v_body = qrot(qconj(q), v_rel) #velocity of spacecraft wrt atm in body frame
     α = acos(v_body[3]/norm(v_body)) #radians
-    if α != 0.0 && abs(v_body[1]/(norm(v_body)*sin(α))) <= 1.0
-            β = acos(v_body[1]/(norm(v_body)*sin(α)))
+    if α != 0.0 #&& abs(v_body[3]/(norm(v_body)*sin(α))) <= 1.0
+            sin_β = -v_body[2]/(norm(v_body)*sin(α))
+            if abs(v_body[1]/(norm(v_body)*sin(α))) > 1.0
+                A = sign(v_body[1]/(norm(v_body)*sin(α)))*1.0
+                if sin_β >=0.0
+                    β = acos(A)
+                else
+                    β = 2*pi-acos(A)
+                end
+            else
+                if sin_β >=0.0
+                    β = acos(v_body[1]/(norm(v_body)*sin(α)))
+                else
+                    β = 2*pi-acos(v_body[1]/(norm(v_body)*sin(α)))
+                end
+            end
     else
-            β = 0.0
+            β = 0.0 #WRONG BUT NO WAY TO DETERMINE β in this case.
     end
+    if t == 0.0
+    @show(β)
+end
     #α = floor(Int, α*180/pi)+1 #degrees
     #@show(v_body)
     #@show(α-1)
@@ -68,7 +85,7 @@ function dyna_coeffoff_COM_on_axis(t, x, u)
 
     Cτ = [table_aero_chebyshev(α, 0.0, 181.0, C_τX);
         table_aero_chebyshev(α, 0.0, 181.0, C_τY);
-        table_aero_chebyshev(α, 0.0, 181.0, C_τZ)]
+        table_aero_chebyshev(α, 0.0, 181.0, C_τZ)] #given the plotted coeff curve but...
 
     h = (norm(r)-Re)
     F_aero_v = -0.5*exponential_atmosphere(h)*((norm(v_rel))^2)*CF*A_ref

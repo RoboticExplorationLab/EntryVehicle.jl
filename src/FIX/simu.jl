@@ -40,7 +40,7 @@ end
 δ =70*pi/180
 r_min = 0.2
 r_cone = 1.3
-r_G = [0.011; 0.0; -0.1]
+r_G = [0.015; 0.0; 0.0]
 table_CF, table_Cτ = table_aero_spherecone(δ, r_min, r_cone, r_G)
 
 α = 0.0:1.0:181.0
@@ -60,7 +60,7 @@ C_τZ = compute_chebyshev_coefficients_aerodynamics(α, tableτZ[1:182], order)
 
 
 
-θ = 270.0*pi/180 #rotation angle about z body axis
+θ = 91*pi/180 #rotation angle about z body axis
 M = [-sin(θ) cos(θ) 0.0;
      0.0 0.0 1.0;
      cos(θ) sin(θ) 0.0]
@@ -73,20 +73,19 @@ M = [0.0 0.0 -1.0;
     0.0 1.0 0.0]
 Q = mat2quat(M)
 Q = qconj(Q)
-
 v_eci = [-1.0; 5.0; 0.0]*1e3
 β = acos((v_eci'*[0.0; 1.0; 0.0])/(norm(v_eci)))
 x_b = [-cos(β); -sin(β); 0.0]
 z_b = v_eci/(norm(v_eci))
 y_b = [0.0; 0.0; 1.0]
-
 M = hcat(x_b, y_b, z_b)
 Q = mat2quat(M)
 Q = qconj(Q)
 
-v_eci = [0.0; 2.0; 0.0]*1e3
-x0 = [(3389.5+125)*1e3; 0.0; 0.0; Q[1]; Q[2]; Q[3]; Q[4]; v_eci; 0.0; 0.001; 0.001]
-t_sim4, Z4 = rk4(dyna_coeffoff_COM_on_axis, x0, [0.0], 0.01, [0.0, 300.0])
+#state ini
+v_eci = [0.001; 1.0; 0.0001]*1e3
+x0 = [(3389.5+125)*1e3; 0.0; 0.0; Q[1]; Q[2]; Q[3]; Q[4]; v_eci; 0.0; 0.0; 0.0]
+t_sim4, Z4 = rk4(dyna_coeffoff_COM_on_axis, x0, [0.0], 0.01, [0.0, 265.0])
 
 plot_traj(Z4)
 plot_altitude(Z4, t_sim4)

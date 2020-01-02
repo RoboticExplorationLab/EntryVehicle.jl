@@ -1,4 +1,5 @@
-#Space Mechanics functions for orbit computation and stuff like thtat
+#Space Mechanics functions for orbit computation and stuff like that
+##WARNINGG : need mu in meters and Re for some of the dynamical models
 
 function ecef2geoc(r_ecef)
     #goes from the planet centered reference frame to the geocentric coordinates
@@ -159,7 +160,6 @@ function M2E(M, e) #E, e of the orbit
     end
     return E
 end
-
 
 #test space
 #=using LinearAlgebra

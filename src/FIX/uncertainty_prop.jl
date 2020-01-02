@@ -1,9 +1,6 @@
 # Modular version of the ellipsoid fiiting
 
 function ellipse2points(A, b, x0)
-    #A is the matrix we obtain from the previous step
-    #x is the center of the ellipsoid in 7 dimensions
-    #y is the center of the ellipsoid in 6 dimensions
     V = [0.0 1.0 0.0 0.0; 0.0 0.0 1.0 0.0; 0.0 0.0 0.0 1.0]
     n = length(b)
     points2 = zeros(n, 2*n+1)
@@ -18,7 +15,6 @@ function ellipse2points(A, b, x0)
     for i =1:n
         points2[:, 2*i-1] = M + W[:, i]
         points2[:, 2*i] = M - W[:, i]
-        #@show(points2[:, 2*i])
     end
     for i =1:2*n
         points3[1:3, i] = points2[1:3, i]
@@ -115,7 +111,7 @@ end
 #x0 nominal initial condition (careful if reference, attitude needs to be 0.0)
 #integrator (later between RK4 and DiffEq)
 
-function uncertainty_propagation(A0, b0, t_start, t_end, dtt, x0, m)
+function uncertainty_propagation(A0, b0, t_start, t_end, dtt, x0, m, model)
     T = t_start:dtt:t_end
     n = length(b0)
     blist = zeros(n, length(T))
