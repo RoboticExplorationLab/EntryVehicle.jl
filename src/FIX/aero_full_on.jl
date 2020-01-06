@@ -9,15 +9,15 @@ a=1
 
 #test for offline coefficients computation
 
-function compute_aero2(δ, r_min, r_cone, r_G, α, β)
+function compute_aero2(δ, r_min, r_cone, r_G, v, ω, α, β)
     #general case: v is the relative velocity of spacecraft wrt atm
     CF_aero_body = [0.0;0.0;0.0]
     Cτ_aero_body = [0.0;0.0;0.0]
-    v_body = [sin(α)*cos(β), -sin(β), cos(α)*cos(β)]
+    v_body = v*[sin(α)*cos(β), -sin(β), cos(α)*cos(β)] #minus on the y because of my body frame
     #@show(norm(v))
     #@show(norm(v_body))
-    dr = 0.001
-    dv = pi/50.0
+    dr = 0.01
+    dv = pi/20.0
     A = 0.0
     #A_cone = (pi*r_cone*sqrt(r_cone^2 + (r_cone/tan(δ))^2)) #m^2
     A_ref = pi*r_cone^2
@@ -29,10 +29,12 @@ function compute_aero2(δ, r_min, r_cone, r_G, α, β)
             dA = dA #dA in m^2
             r_element = [r_i*cos(a); r_i*sin(a); (r_cone-r_i)/tan(δ)]
             A = A + dA
-            if n̂'*v_body > 0
+            v_element = v_body - cross(ω, r_element-r_G)
+            v_element = v_element/(norm(v_element))
+            if n̂'*v_element > 0
                 #dC = dot(n̂, v_body/norm(v_body))*dA*n̂
                 #F_element = -0.5*exponential_atmosphere(h)*(norm(v_body)^2)*dC
-                F_element = n̂'*v_body*dA*n̂*2*(n̂'*v_body) #CAREFUL
+                F_element = n̂'*v_element*dA*n̂*2*(n̂'*v_element) #CAREFUL
                 τ_element = cross((r_element-r_G), F_element)
                 CF_aero_body = CF_aero_body + F_element #m^2
                 Cτ_aero_body = Cτ_aero_body + τ_element #m^3
@@ -55,14 +57,14 @@ function table_aero(δ, r_min, r_cone, r_G, β)
     return table_CF, table_Cτ
 end
 
-function compute_aero_sphere(δ, r_min, r_cone, r_G, α, β)
+function compute_aero_sphere(δ, r_min, r_cone, r_G, v, ω, α, β)
     #general case: v is the relative velocity of spacecraft wrt atm
     CF_aero_body = [0.0;0.0;0.0]
     Cτ_aero_body = [0.0;0.0;0.0]
-    v_body = [sin(α)*cos(β), sin(β), cos(α)*cos(β)] #okay convention chosen, fair
+    v_body = v*[sin(α)*cos(β), -sin(β), cos(α)*cos(β)] #okay convention chosen, fair
     l = (r_cone-r_min)/tan(δ)
-    dz = 0.001
-    dv = pi/50.0
+    dz = 0.01
+    dv = pi/20.0
     A = 0.0
     r_sphere = r_min/cos(δ) #radius where cone is cut
     h = r_sphere*(1-sin(δ)) #height above the cut
@@ -76,8 +78,10 @@ function compute_aero_sphere(δ, r_min, r_cone, r_G, α, β)
             dA = dA #dA in m^2
             r_element = [sqrt(r_sphere^2-z^2)*cos(a); sqrt(r_sphere^2-z^2)*sin(a); l-r_sphere+h+z]
             A = A + dA
-            if n̂'*v_body > 0
-                F_element = n̂'*v_body*dA*n̂*2*(n̂'*v_body)
+            v_element = v_body - cross(ω, r_element-r_G)
+            v_element = v_element/(norm(v_element))
+            if n̂'*v_element > 0
+                F_element = n̂'*v_element*dA*n̂*2*(n̂'*v_element)
                 τ_element = cross((r_element-r_G), F_element) #okay computed at COM
                 CF_aero_body = CF_aero_body + F_element #m^2
                 Cτ_aero_body = Cτ_aero_body + τ_element #m^3
@@ -85,6 +89,23 @@ function compute_aero_sphere(δ, r_min, r_cone, r_G, α, β)
         end
     end
     return CF_aero_body/A_ref, Cτ_aero_body/(A_ref*L_ref)  #CF_aero_body*(A_sphere/A), Cτ_aero_body*(A_sphere/A)
+end
+
+function coeff_aero_spherecone(δ, r_min, r_cone, r_G, v, ω, α, β)
+    #Based on traditional notation, here this function gives CA, -CY (=-CS), CN (or -CX, -CY, -CZ)
+    #BUT as I changed the order, I actually return in this order: CN, -CY, CA (That's for FORCES)
+    r_sphere = r_min/cos(δ) #radius where cone is cut
+    A_ref_s = pi*r_sphere^2
+    L_ref_s = r_sphere
+    A_ref_c = pi*r_cone^2
+    L_ref_c = r_cone
+    A_ref = pi*r_cone^2
+    L_ref = r_cone
+    CF_cone, Cτ_cone = compute_aero2(δ, r_min, r_cone, r_G, v, ω, α, β)
+    CF_sphere, Cτ_sphere = compute_aero_sphere(δ, r_min, r_cone, r_G, v, ω, α, β)
+    CF = (CF_cone*A_ref_c+CF_sphere*A_ref_s)/A_ref
+    Cτ = (Cτ_cone*A_ref_c*L_ref_c+Cτ_sphere*A_ref_s*L_ref_s)/(A_ref*L_ref)
+    return CF, Cτ
 end
 
 function table_aero_spherecone(δ, r_min, r_cone, r_G, β)
@@ -142,7 +163,7 @@ function drag_lift_table(δ, r_min, r_cone, r_G, β)
     return table_CD, table_CL
 end
 
-#test space
+#=test space
 β = 20.0*pi/180.0
 δ = 70.0*pi/180
 r_min = 0.09144*cos(δ)
@@ -154,14 +175,14 @@ Plots.scatter(α, t2[1:61, 2])
 
 #Forces coefficients
 p1 = Plots.plot(α, t1[1:61, 1])
-p2 = Plots.plot(α, -t1[1:61, 2])
+p2 = Plots.plot(α, t1[1:61, 2])
 p3 = Plots.plot(α, t1[1:61, 3])
 Plots.plot(p3, p2, p1, layout = (1, 3), legend = false)
 
 #Moment coefficients
-p1 = Plots.plot(α, t2[1:61, 1])
+p1 = Plots.plot(α, -t2[1:61, 1])
 p2 = Plots.plot(α, t2[1:61, 2])
-p3 = Plots.plot(α, t2[1:61, 3])
+p3 = Plots.plot(α, -t2[1:61, 3])
 Plots.plot(p3, p2, p1, layout = (1, 3), legend = false)
 
 ##cone only
@@ -186,4 +207,4 @@ Plots.plot(p3, p2, p1, layout = (1, 3), legend = false)
 p1 = Plots.plot(α, -t2[1:61, 1])
 p2 = Plots.plot(α, t2[1:61, 2])
 p3 = Plots.plot(α, -t2[1:61, 3])
-Plots.plot(p3, p2, p1, layout = (1, 3), legend = false)
+Plots.plot(p3, p2, p1, layout = (1, 3), legend = false) =#

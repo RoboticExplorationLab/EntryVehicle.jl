@@ -4,12 +4,19 @@ using LinearAlgebra
 using Plots
 using ApproxFun
 using Libdl
+using MosekTools
+using Mosek
+using MathOptInterface
+using JuMP
 
 include("aero.jl")
+include("aero_full_on.jl")
 include("dyna.jl")
 include("quaternions.jl")
 include("traj_plots.jl")
 include("interpolation.jl")
+include("ellipsoid.jl")
+
 
 a=1
 
@@ -39,8 +46,8 @@ end
 
 δ =70*pi/180
 r_min = 0.2
-r_cone = 1.3
-r_G = [0.015; 0.0; 0.0]
+r_cone = 1.325
+r_G = [0.0; 0.0; -0.189]
 table_CF, table_Cτ = table_aero_spherecone(δ, r_min, r_cone, r_G)
 
 α = 0.0:1.0:181.0
@@ -59,8 +66,7 @@ C_τY = compute_chebyshev_coefficients_aerodynamics(α, tableτY[1:182], order)
 C_τZ = compute_chebyshev_coefficients_aerodynamics(α, tableτZ[1:182], order)
 
 
-
-θ = 91*pi/180 #rotation angle about z body axis
+θ = 91.0*pi/180 #rotation angle about z body axis
 M = [-sin(θ) cos(θ) 0.0;
      0.0 0.0 1.0;
      cos(θ) sin(θ) 0.0]
@@ -73,7 +79,9 @@ M = [0.0 0.0 -1.0;
     0.0 1.0 0.0]
 Q = mat2quat(M)
 Q = qconj(Q)
-v_eci = [-1.0; 5.0; 0.0]*1e3
+
+#case with non zero flight path angle
+v_eci = [-1.2; 5.6; 0.0]*1e3
 β = acos((v_eci'*[0.0; 1.0; 0.0])/(norm(v_eci)))
 x_b = [-cos(β); -sin(β); 0.0]
 z_b = v_eci/(norm(v_eci))
@@ -83,15 +91,48 @@ Q = mat2quat(M)
 Q = qconj(Q)
 
 #state ini
-v_eci = [0.001; 1.0; 0.0001]*1e3
-x0 = [(3389.5+125)*1e3; 0.0; 0.0; Q[1]; Q[2]; Q[3]; Q[4]; v_eci; 0.0; 0.0; 0.0]
+v_eci = [-0.001; 1.0; 0.0001]*1e3
+x0 = [(3389.5+125)*1e3; 0.0; 0.0; Q[1]; Q[2]; Q[3]; Q[4]; v_eci; 0.0; 0.0; 0.17]
 t_sim4, Z4 = rk4(dyna_coeffoff_COM_on_axis, x0, [0.0], 0.01, [0.0, 265.0])
+t_sim4, Z4 = rk4(dyna_coeffon_COM_on_axis, x0, [0.0], 0.05, [0.0, 230.0])
 
 plot_traj(Z4)
 plot_altitude(Z4, t_sim4)
 plot_quaternions(Z4)
 plot_attack_angle(Z4, t_sim4)
+plot_total_attack_angle(Z4, t_sim4)
 
+plot_entry_profile(Z4, t_sim4)
 plot_ang_vel(Z4, t_sim4)
-
 plot_vel(Z4, t_sim4)
+
+
+#############################################################
+######## Uncertainty Test ###################################
+#############################################################
+
+x0_12 = [(3389.5+125)*1e3/(1e3*3389.5); 0.0; 0.0; 0.0; 0.0; 0.0; v_eci/(1e3*7.00); 0.0; 0.0; 0.0]#because the center with respect to himself is 0
+Q0 = Diagonal([(10.0/(3389.5*1e3))^2;(10.0/(3389.5*1e3))^2;(10.0/(3389.5*1e3))^2; 0.005^2; 0.005^2; 0.005^2; (1e-2/(1e3*7.00))^2; (1e-2/(1e3*7.00))^2; (1e-2/(1e3*7.00))^2; (1e-20); (1e-20);(1e-20)]) #here we assume the change in a(vector part of the change in quaternion)
+Q0 = Matrix(Q0)
+
+A1 = inv(sqrt(Q0))
+b1 = -A1*x0_12
+
+u = [0.0]
+Alist, blist, centerlist, XX, T = propagation(A1, b1)
+
+function plot_traj_center(centerlist, T)
+    X = zeros(length(T))
+    Y = zeros(length(T))
+    for j=1:length(T)
+        X[j] = centerlist[1, j]*3389.5*1e3
+        Y[j] = centerlist[2, j]*3389.5*1e3
+    end
+    Plots.scatter(X, Y)
+end
+
+plot_traj_center(centerlist, T)
+
+Plots.scatter(centerlist[1, :]*3389.5*1e3, centerlist[2, :]*3389.5*1e3)
+
+Plots.scatter(T, centerlist[11, :])

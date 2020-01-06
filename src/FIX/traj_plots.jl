@@ -17,12 +17,11 @@ function plot_traj(X)
 end
 
 function plot_altitude(X, t_sim)
-    Re = 3389.5
     R = zeros(length(t_sim))
     for i = 1:length(t_sim)
-        R[i] = (sqrt(X[1, i]^2+X[2, i]^2+X[3, i]^2)-1)
+        R[i] = (sqrt(X[1, i]^2+X[2, i]^2+X[3, i]^2)-(3389.5*1e3))
     end
-    Plots.plot(t_sim, R, label="Spacecraft Altitude")
+    Plots.plot(t_sim, R*1e-3, label="Spacecraft Altitude")
     xlabel!("t [s]")
     ylabel!("altitude [km]")
     title!("Spacecraft Altitude")
@@ -36,7 +35,7 @@ function plot_attack_angle(X, t_sim)
         v = X[8:10, i]
         r = X[1:3, i]
         ω_mars = [0.0; 0.0; 7.095*10^(-5)]
-        ω_mars = [0.0; 0.0; 0.0]
+        #ω_mars = [0.0; 0.0; 0.0]
         v_rel = (v-cross(ω_mars, r)) #velocity of spacecraft wrt atm
         v_body = qrot(qconj(q), v_rel) #velocity of spacecraft wrt atm in body frame
         α[i] = acos(v_body[3]/norm(v_body)) #radians
@@ -44,6 +43,47 @@ function plot_attack_angle(X, t_sim)
     end
     Plots.plot(t_sim, α)
 end
+
+function plot_total_attack_angle(X, t_sim)
+    n = length(t_sim)
+    α_t = zeros(n)
+    for i =1:1:n
+        q = X[4:7, i]
+        v = X[8:10, i]
+        r = X[1:3, i]
+        ω_mars = [0.0; 0.0; 7.095*10^(-5)]
+        #ω_mars = [0.0; 0.0; 0.0]
+        v_rel = (v-cross(ω_mars, r)) #velocity of spacecraft wrt atm
+        v_body = qrot(qconj(q), v_rel) #velocity of spacecraft wrt atm in body frame
+        β = asin(-v_body[2]/(norm(v_body)))
+        α = atan(v_body[1], v_body[3])
+        ᾱ = acos(cos(α)*cos(β))
+        α_t[i] = ᾱ
+    end
+    Plots.plot(t_sim, α_t)
+end
+
+function plot_entry_profile(X, t_sim)
+    #defined as altitude vs relative velocity
+    n = length(t_sim)
+    R = zeros(length(t_sim))
+    V = zeros(length(t_sim)) #relative vel
+    ω_mars = [0.0; 0.0; 7.095*10^(-5)]
+    #ω_mars = [0.0; 0.0; 0.0]
+    for i = 1:1:n
+        R[i] = (sqrt(X[1, i]^2+X[2, i]^2+X[3, i]^2)-(3389.5*1e3))
+        q = X[4:7, i]
+        v = X[8:10, i]
+        r = X[1:3, i]
+        v_rel = (v-cross(ω_mars, r)) #velocity of spacecraft wrt atm
+        V[i] = norm(v_rel)
+    end
+    Plots.plot(V*1e-3, R*1e-3, legend=false)
+    xlabel!("relative velocity [km.s-1]")
+    ylabel!("altitude [km]")
+end
+
+
 
 function plot_quaternions(X)
     Plots.plot(X[4, :])

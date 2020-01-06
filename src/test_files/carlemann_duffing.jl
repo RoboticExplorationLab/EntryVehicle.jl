@@ -1,4 +1,5 @@
 #Carlemann linearization on Duffing Oscillator
+using Plots
 
 function S(i, p)
     S = 0
@@ -88,7 +89,10 @@ p = 4 #order 3 is enough when dt small enough
 x_ini = [0.1 10.0]
 N = Int64((p+1)*(p+2)/2)
 X = integration_carlemann(x_ini, t_ini, t_end, dt)
-Plots.plot(X[1, :], X[2, :])
+Plots.plot(X[1, :], X[2, :], legend = false)
+savefig("duff_int")
+
+
 σ_x1 = 0.01
 σ_x2 = 0.01
 
