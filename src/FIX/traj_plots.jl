@@ -10,10 +10,9 @@
 #Plot functions
 
 function plot_traj(X)
-    Plots.plot(X[1, :], X[2, :], label="Spacecraft Trajectory")
+    Plots.plot(X[1, :]*1e-3, X[2, :]*1e-3, legend = false)
     xlabel!("X [km]")
     ylabel!("Y [km]")
-    title!("Spacecraft Trajectory in MCI - XY projection")
 end
 
 function plot_altitude(X, t_sim)
@@ -21,10 +20,9 @@ function plot_altitude(X, t_sim)
     for i = 1:length(t_sim)
         R[i] = (sqrt(X[1, i]^2+X[2, i]^2+X[3, i]^2)-(3389.5*1e3))
     end
-    Plots.plot(t_sim, R*1e-3, label="Spacecraft Altitude")
-    xlabel!("t [s]")
-    ylabel!("altitude [km]")
-    title!("Spacecraft Altitude")
+    Plots.plot(t_sim, R*1e-3, legend=false)
+    xlabel!("Time [s]")
+    ylabel!("Altitude [km]")
 end
 
 function plot_attack_angle(X, t_sim)
@@ -35,7 +33,7 @@ function plot_attack_angle(X, t_sim)
         v = X[8:10, i]
         r = X[1:3, i]
         ω_mars = [0.0; 0.0; 7.095*10^(-5)]
-        #ω_mars = [0.0; 0.0; 0.0]
+        ω_mars = [0.0; 0.0; 0.0]
         v_rel = (v-cross(ω_mars, r)) #velocity of spacecraft wrt atm
         v_body = qrot(qconj(q), v_rel) #velocity of spacecraft wrt atm in body frame
         α[i] = acos(v_body[3]/norm(v_body)) #radians
@@ -55,12 +53,12 @@ function plot_total_attack_angle(X, t_sim)
         #ω_mars = [0.0; 0.0; 0.0]
         v_rel = (v-cross(ω_mars, r)) #velocity of spacecraft wrt atm
         v_body = qrot(qconj(q), v_rel) #velocity of spacecraft wrt atm in body frame
-        β = asin(-v_body[2]/(norm(v_body)))
-        α = atan(v_body[1], v_body[3])
-        ᾱ = acos(cos(α)*cos(β))
-        α_t[i] = ᾱ
+        α = acos(v_body[3]/norm(v_body))
+        α_t[i] = α*180/pi
     end
-    Plots.plot(t_sim, α_t)
+    Plots.plot(t_sim, α_t, legend = false)
+    ylabel!("Total AoA [°]")
+    xlabel!("Time [s]")
 end
 
 function plot_entry_profile(X, t_sim)
@@ -79,29 +77,27 @@ function plot_entry_profile(X, t_sim)
         V[i] = norm(v_rel)
     end
     Plots.plot(V*1e-3, R*1e-3, legend=false)
-    xlabel!("relative velocity [km.s-1]")
-    ylabel!("altitude [km]")
+    xlabel!("Relative velocity [km.s-1]")
+    ylabel!("Altitude [km]")
 end
 
 
 
-function plot_quaternions(X)
-    Plots.plot(X[4, :])
-    Plots.plot!(X[5, :])
-    Plots.plot!(X[6, :])
-    Plots.plot!(X[7, :])
-    xlabel!("t [s]")
+function plot_quaternions(X, t_sim)
+    Plots.plot(t_sim, X[4, :], label= "q0")
+    Plots.plot!(t_sim, X[5, :], label= "q1")
+    Plots.plot!(t_sim, X[6, :], label= "q2")
+    Plots.plot!(t_sim, X[7, :], label= "q3")
+    xlabel!("Time [s]")
     ylabel!("Quaternions")
-    title!("Spacecraft Quaternions")
 end
 
 function plot_ang_vel(X, t_sim)
-    Plots.plot(t_sim, X[11, :])
-    Plots.plot!(t_sim, X[12, :])
-    Plots.plot!(t_sim, X[13, :])
-    xlabel!("t [s]")
+    Plots.plot(t_sim, X[11, :], label = "omega_x")
+    Plots.plot!(t_sim, X[12, :], label = "omega_y")
+    Plots.plot!(t_sim, X[13, :], label = "omega_z")
+    xlabel!("Time [s]")
     ylabel!("Angular Velocity Components")
-    title!("Spacecraft Angular Velocity")
 end
 
 function norm_quaternions(X, t_sim)
@@ -116,12 +112,11 @@ function plot_vel(X, t_sim)
         V = zeros(length(t_sim))
 
         for i = 1:length(t_sim)
-            V[i] = sqrt(X[8, i]^2+X[9, i]^2+X[10, i]^2)
+            V[i] = sqrt(X[8, i]^2+X[9, i]^2+X[10, i]^2)*1e-3
         end
-        Plots.plot(t_sim, V, label="Spacecraft Velocity")
-        xlabel!("t [s]")
+        Plots.plot(t_sim, V, legend = false)
+        xlabel!("Time [s]")
         ylabel!("Velocity [km/s]")
-        title!("Spacecraft Velocity")
 end
 
 function vector_z_body(X, t_sim)
@@ -134,10 +129,9 @@ function vector_z_body(X, t_sim)
 end
 
 function plot_temp(X, t_sim)
-    plot(t_sim, Z[14, :], label="Spacecaft Temperature")
-    xlabel!("t [s]")
+    plot(t_sim, Z[14, :], legend = false)
+    xlabel!("Time [s]")
     ylabel!("Temperature [K]")
-    title!("Spacecraft Temperature")
 end
 
 function plot_acc(X, t_sim)
@@ -146,8 +140,41 @@ function plot_acc(X, t_sim)
     for i = 1:length(t_sim)
         R[i] = (sqrt(X[1, i]^2+X[2, i]^2+X[3, i]^2)-1)*Re
     end
-    plot(Z[15, :], R, label="Spacecaft Acceleration")
+    plot(Z[15, :], R, legend = false)
     ylabel!("Altitude [km]")
     xlabel!("Acceleration [g]")
-    title!("Spacecraft Acceleration")
+end
+
+function plot_mach_number(X, t_sim)
+    Re = 3389.5*1e3
+    n = length(t_sim)
+    M = [norm(X[8:10, i])/(speed_sound(norm(X[1:3, i])-Re)) for i=1:n]
+    Plots.plot(t_sim, M)
+    xlabel!("Time [s]")
+    ylabel!("Mach number")
+end
+
+function plot_mach_number_altitude(X, t_sim)
+    Re = 3389.5*1e3
+    n = length(t_sim)
+    M = [norm(X[8:10, i])/(speed_sound(norm(X[1:3, i])-Re)) for i=1:n]
+    A = [(norm(X[1:3, i])-Re)/(1e3) for i=1:n]
+    Plots.plot(A, M, legend =false)
+    xlabel!("Altitude [km]")
+    ylabel!("Mach number")
+end
+
+function specific_energy(V, r)
+    μ = 4.282837*1e13
+    E = 0.5*V^2-μ/r
+    return E
+end
+
+function plot_specific_energy(X, t_sim)
+    V = [norm(X[8:10,i]) for i=1:1:length(t_sim)]
+    R = [norm(X[1:3,i]) for i=1:1:length(t_sim)]
+    EE = [specific_energy(V[i], R[i]) for i=1:1:length(t_sim)]
+    Plots.plot(t_sim, EE)
+    xlabel!("Time [s]")
+    ylabel!("Specific energy [J]")
 end

@@ -47,8 +47,8 @@ end
 δ =70*pi/180
 r_min = 0.2
 r_cone = 1.325
-r_G = [0.0; 0.0; -0.189]
-table_CF, table_Cτ = table_aero_spherecone(δ, r_min, r_cone, r_G)
+r_G = [0.001; 0.0; -0.189]
+table_CF, table_Cτ, table_damping = table_aero_spherecone(δ, r_min, r_cone, r_G)
 
 α = 0.0:1.0:181.0
 tableFX = table_CF[:,1]
@@ -57,6 +57,9 @@ tableFZ = table_CF[:,3]
 tableτX = table_Cτ[:,1]
 tableτY = table_Cτ[:,2]
 tableτZ = table_Cτ[:,3]
+tabledx = table_damping[:, 1]
+tabledy = table_damping[:, 2]
+tabledz = table_damping[:, 3]
 order = 14
 C_FX = compute_chebyshev_coefficients_aerodynamics(α, tableFX[1:182], order)
 C_FY = compute_chebyshev_coefficients_aerodynamics(α, tableFY[1:182], order)
@@ -64,9 +67,12 @@ C_FZ = compute_chebyshev_coefficients_aerodynamics(α, tableFZ[1:182], order)
 C_τX = compute_chebyshev_coefficients_aerodynamics(α, tableτX[1:182], order)
 C_τY = compute_chebyshev_coefficients_aerodynamics(α, tableτY[1:182], order)
 C_τZ = compute_chebyshev_coefficients_aerodynamics(α, tableτZ[1:182], order)
+DX = compute_chebyshev_coefficients_aerodynamics(α, tabledx[1:182], order)
+DY = compute_chebyshev_coefficients_aerodynamics(α, tabledy[1:182], order)
+DZ = compute_chebyshev_coefficients_aerodynamics(α, tabledz[1:182], order)
 
 
-θ = 91.0*pi/180 #rotation angle about z body axis
+θ = 0.0*pi/180 #rotation angle about z body axis
 M = [-sin(θ) cos(θ) 0.0;
      0.0 0.0 1.0;
      cos(θ) sin(θ) 0.0]
@@ -81,9 +87,9 @@ Q = mat2quat(M)
 Q = qconj(Q)
 
 #case with non zero flight path angle
-v_eci = [-1.2; 5.6; 0.0]*1e3
+v_eci = [-1.6; 6.8; 0.0001]*1e3
 β = acos((v_eci'*[0.0; 1.0; 0.0])/(norm(v_eci)))
-x_b = [-cos(β); -sin(β); 0.0]
+x_b = [-cos(β);-sin(β); 0.0]
 z_b = v_eci/(norm(v_eci))
 y_b = [0.0; 0.0; 1.0]
 M = hcat(x_b, y_b, z_b)
@@ -92,34 +98,50 @@ Q = qconj(Q)
 
 #state ini
 v_eci = [-0.001; 1.0; 0.0001]*1e3
-x0 = [(3389.5+125)*1e3; 0.0; 0.0; Q[1]; Q[2]; Q[3]; Q[4]; v_eci; 0.0; 0.0; 0.17]
-t_sim4, Z4 = rk4(dyna_coeffoff_COM_on_axis, x0, [0.0], 0.01, [0.0, 265.0])
+x0 = [(3389.5+125)*1e3; 0.0; 50.0; Q[1]; Q[2]; Q[3]; Q[4]; v_eci; 0.0; 0.0; 0.0]
+t_sim4, Z4 = rk4(dyna_coeffoff_COM_on_axis, x0, [0.0], 0.01, [0.0, 150.0])
 t_sim4, Z4 = rk4(dyna_coeffon_COM_on_axis, x0, [0.0], 0.05, [0.0, 230.0])
+
 
 plot_traj(Z4)
 plot_altitude(Z4, t_sim4)
-plot_quaternions(Z4)
-plot_attack_angle(Z4, t_sim4)
+savefig("alt")
+plot_quaternions(Z4, t_sim4)
+savefig("quat")
+#plot_attack_angle(Z4, t_sim4)
 plot_total_attack_angle(Z4, t_sim4)
+savefig("attack_angle")
 
 plot_entry_profile(Z4, t_sim4)
+savefig("entry_profile")
 plot_ang_vel(Z4, t_sim4)
+savefig("ang_vel")
 plot_vel(Z4, t_sim4)
+savefig("vel")
+plot_mach_number(Z4, t_sim4)
+plot_mach_number_altitude(Z4, t_sim4)
+savefig("mach")
+plot_specific_energy(Z4, t_sim4)
 
+Plots.plot(t_sim4, Z4[3, :])
+
+a=1
 
 #############################################################
 ######## Uncertainty Test ###################################
 #############################################################
 
-x0_12 = [(3389.5+125)*1e3/(1e3*3389.5); 0.0; 0.0; 0.0; 0.0; 0.0; v_eci/(1e3*7.00); 0.0; 0.0; 0.0]#because the center with respect to himself is 0
-Q0 = Diagonal([(10.0/(3389.5*1e3))^2;(10.0/(3389.5*1e3))^2;(10.0/(3389.5*1e3))^2; 0.005^2; 0.005^2; 0.005^2; (1e-2/(1e3*7.00))^2; (1e-2/(1e3*7.00))^2; (1e-2/(1e3*7.00))^2; (1e-20); (1e-20);(1e-20)]) #here we assume the change in a(vector part of the change in quaternion)
+x0_12 = [(3389.5+125)*1e3/(1e3*3389.5); 0.0; 50.0/(1e3*3389.5); 0.0; 0.0; 0.0; v_eci/(1e3*7.00); 0.0; 0.0; 0.0]#because the center with respect to himself is 0
+Q0 = Diagonal([(50.0/(3389.5*1e3))^2;(50.0/(3389.5*1e3))^2;(0.1/(3389.5*1e3))^2; 0.005^2; 0.005^2; 0.005^2; (1e-3/(1e3*7.00))^2; (1e-3/(1e3*7.00))^2; (1e-4/(1e3*7.00))^2; (1e-40)^2; (1e-40)^2;(1e-40)^2]) #here we assume the change in a(vector part of the change in quaternion)
+
+Q0 = Diagonal(ones(12)*(1e-10)^2)
 Q0 = Matrix(Q0)
+A0 = inv(sqrt(Q0))
+b0 = -A0*x0_12
 
-A1 = inv(sqrt(Q0))
-b1 = -A1*x0_12
+Alist, blist, centerlist, XX, ref, TT = ellipse_propagation(A0, b0, 0.0, 90.0, 1.0)
 
-u = [0.0]
-Alist, blist, centerlist, XX, T = propagation(A1, b1)
+uncertainty(Alist)
 
 function plot_traj_center(centerlist, T)
     X = zeros(length(T))
@@ -131,8 +153,160 @@ function plot_traj_center(centerlist, T)
     Plots.scatter(X, Y)
 end
 
-plot_traj_center(centerlist, T)
+function X_lims(X)
+    n, m = size(X)
+    lim = zeros(13, 2)
+    for i =1:1:n
+        lim[i, 1], lim[i, 2] = minimum(X[i, :]), maximum(X[i, :])
+    end
+    return lim
+end
+
+function XX_lims(XX)
+    n, m, time = size(XX)
+    lims = zeros(13, 2, time)
+    for i=1:1:time
+        lims[:, :, i] = X_lims(XX[:, :, i])
+    end
+    return lims
+end
+
+function uncertainty(Alist)
+    t = length(Alist[1, 1, :])
+    U = zeros(t)
+    for i=1:1:t
+        U[i] = tr(inv(Alist[:, :, i]))
+    end
+    Plots.plot(U)
+    Plots.xlabel!("time")
+    Plots.ylabel!("uncertainty matrix trace")
+end
+
+function euler2quat_center(centerlist, ref)
+    n, t = size(centerlist)
+    center_X13 = zeros(n+1, t)
+    for i=1:1:t
+        center_X13[:, i] = point12_13(centerlist[:, i], ref[:, i])
+    end
+    return center_X13
+end
+
+center13 = euler2quat_center(centerlist, ref)
+
+Plots.scatter(TT, center13[1, :]*1e3*3389.5)
+
+plot_traj_center(centerlist, TT)
 
 Plots.scatter(centerlist[1, :]*3389.5*1e3, centerlist[2, :]*3389.5*1e3)
 
-Plots.scatter(T, centerlist[11, :])
+Plots.scatter(TT, centerlist[1, :]*3389.5*1e3)
+Plots.scatter(TT, centerlist[6, :])
+Plots.scatter!(TT, centerlist[9, :]*1e3*7.00)
+Plots.scatter(TT, centerlist[10, :])
+
+Plots.plot!(t_sim4, Z4[10, :])
+
+
+uncertainty(Alist)
+
+
+lim = XX_lims(XX)
+
+Plots.scatter(lim[1, 1, :]*3389.5*1e3)
+Plots.scatter!(lim[1, 2, :]*3389.5*1e3)
+
+Plots.scatter(lim[1, 1, :]/(1e14))
+Plots.scatter!(lim[1, 2, :]/(1e14))
+
+QQ = uncert_mat(Alist)
+
+F = inv(Alist[:, :, end])
+W = eigen(F)
+
+
+################################################################################
+###########################MONTE CARLO##########################################
+################################################################################
+
+using Distributions
+using Random
+
+function generate_samples(x_0, Q, M)
+    #M number of samples
+    n = length(x_0)
+    univariate_D_vector = [Uniform(x_0[i]-sqrt(Q[i,i]),x_0[i]+sqrt(Q[i,i])) for i=1:length(x_0)]
+    D = Product(univariate_D_vector)
+    X_samples = zeros(n, M)
+    rand!(D, X_samples)
+    return X_samples
+end
+
+function point12_13(X)
+    X13 = zeros(length(X)+1)
+    X13[1:3] = X[1:3]
+    X13[4:7] = euler2quat(X[4:6])
+    X13[8:13] = X[7:12]
+    return X13
+end
+
+
+function prop_MC_entry(X_samples, t_start, t_end, dt, p, model)
+    n, M = size(X_samples)
+    #saveAT = 1.0
+    TT = t_start:dt:t_end
+    traj = zeros(n+1, length(TT), M)
+    for i=1:1:M
+        @show(i)
+        x_ini = point12_13(X_samples[:, i])
+        #prob = ODEProblem(duffing!,u0,tspan,M)
+        #sol = DifferentialEquations.solve(prob, saveat = saveAT, abstol = 1e-9, reltol = 1e-9)
+        t_sim, Z = rk4(model, x_ini, p, dt, [t_start, t_end])
+        traj[:, :, i] = Z
+    end
+    return traj, TT
+end
+
+
+θ = 20.0*pi/180.0
+M = [cos(θ) -sin(θ) 0.0;
+     sin(θ) cos(θ) 0.0;
+     0.0 0.0 1.0]
+Q = mat2quat(M)
+Q = qconj(Q)
+
+x0 = [(3389.5+125)*1e3; 0.0; 50.0; Q[1]; Q[2]; Q[3]; Q[4]; v_eci; 0.0; 0.0; 0.0]
+e = quat2euler(Q)
+norm(e)
+e/(norm(e))
+x0_12 = [(3389.5+125)*1e3; 0.0; 50.0; e; v_eci; 0.0; 0.0; 0.0]
+Q0 = Diagonal([(50.0)^2;(50.0)^2;(50.0)^2; 0.005^2; 0.005^2; 0.005^2; (1e-3)^2; (1e-3)^2; (1e-3)^2; (1e-40)^2; (1e-40)^2;(1e-40)^2])
+X_samples = generate_samples(x0_12, Q0, 500)
+p = [0.0]
+traj, TT = prop_MC_entry(X_samples, 0.0, 150.0, 0.01, p, dyna_coeffoff_COM_on_axis)
+
+a = 1.0
+
+function mean_var_MC(traj)
+    n, t, M = size(traj)
+    avg = zeros(n, t)
+    var = zeros(n, n, t)
+    for i=1:1:t
+        @show(i)
+        S = zeros(n)
+        V = zeros(n, n)
+        for j=1:1:M
+            S += traj[:, i, j]
+        end
+        avg[:, i] = S/M
+        for k =1:1:M
+            V+= (traj[:, i, k]-avg[:, i])*(traj[:, i, k]-avg[:, i])'
+        end
+        var[:, :, i] = V/M
+    end
+    return avg, var
+end
+
+avg, var = mean_var_MC(traj)
+
+Plots.scatter(0.0:0.01:150.0, avg[3, :])
+Plots.plot!(t_sim4, Z4[3, :])

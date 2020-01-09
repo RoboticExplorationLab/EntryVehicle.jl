@@ -80,3 +80,33 @@ function exp_quat(q) #v is a rotation vector
     end
     return Q
 end
+
+function quat2euler_error(q, qref)
+    #qref is the reference that we use
+    #return vector euler error between q and qref
+    V = [0.0 1.0 0.0 0.0; 0.0 0.0 1.0 0.0; 0.0 0.0 0.0 1.0]
+    δq = qmult(qconj(qref), q)
+    e = 2*V*log_quat(δq)
+    return e
+end
+
+function euler2quat_error(e, qref)
+    #e is the euler vector of the rotation diff between q and qref
+    #this function returns q given the error and the reference
+    V = [0.0 1.0 0.0 0.0; 0.0 0.0 1.0 0.0; 0.0 0.0 0.0 1.0]
+    q = qmult(qref, exp_quat(V'*e/2))
+    return q
+end
+
+function quat2euler(q)
+    #return the euler vector associated with quaternion q
+    V = [0.0 1.0 0.0 0.0; 0.0 0.0 1.0 0.0; 0.0 0.0 0.0 1.0]
+    e = 2*V*log_quat(q)
+    return e
+end
+
+function euler2quat(e)
+    V = [0.0 1.0 0.0 0.0; 0.0 0.0 1.0 0.0; 0.0 0.0 0.0 1.0]
+    q = exp_quat(V'*e/2)
+    return q
+end

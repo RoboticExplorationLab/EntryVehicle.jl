@@ -24,14 +24,19 @@ function dyna_coeffoff_COM_on_axis(t, x, u)
              0.0 0.0299998 0.0;
              -0.00520108 0.0 0.0136537]=#
 
-    #No mass offset - kg*m^2
+    #=No mass offset - kg*m^2
     J = [77.208 0.0 0.0;
           0.0 77.208 0.0;
           0.0 0.0 101.4]
 
     Jinv = [0.012952 0.0 0.0;
             0.0 0.012952 0.0;
-            0.0 0.0  0.00986193]
+            0.0 0.0  0.00986193] =#
+
+    J = [184.180 0.0 0.0;
+        0.0 184.180 0.0;
+        0.0 0.0 230.0]
+    Jinv = inv(J)
 
     r = x[1:3]
     q = x[4:7]/norm(x[4:7])
@@ -42,11 +47,11 @@ function dyna_coeffoff_COM_on_axis(t, x, u)
 
     #Compute aerodnyamic forces
     ω_mars = [0; 0; 7.095*10^(-5)] #rad.s-1
-    ω_mars = [0.0; 0.0; 0.0]
+    #ω_mars = [0.0; 0.0; 0.0]
     v_rel = (v-cross(ω_mars, r)) #velocity of spacecraft wrt atm
     v_body = qrot(qconj(q), v_rel) #velocity of spacecraft wrt atm in body frame
-    α = acos(v_body[3]/norm(v_body)) #radians
-    if α != 0.0 #&& abs(v_body[3]/(norm(v_body)*sin(α))) <= 1.0
+    α = acos(v_body[3]/norm(v_body)) #in fact total angle of attack, positif necessarily
+    #=if α != 0.0 #&& abs(v_body[3]/(norm(v_body)*sin(α))) <= 1.0
             sin_β = -v_body[2]/(norm(v_body)*sin(α))
             if abs(v_body[1]/(norm(v_body)*sin(α))) > 1.0
                 A = sign(v_body[1]/(norm(v_body)*sin(α)))*1.0
@@ -67,14 +72,16 @@ function dyna_coeffoff_COM_on_axis(t, x, u)
     end
     if t == 0.0
     @show(β)
-end
+end =#
     #α = floor(Int, α*180/pi)+1 #degrees
     #@show(v_body)
     #@show(α-1)
 
-    q_v_b = [cos(β/2); 0.0; 0.0; sin(β/2)]
+    ϕ_w = atan(v_body[2], v_body[1])
 
-    α = α*180/pi
+    q_v_b = [cos(ϕ_w/2); 0.0; 0.0; sin(ϕ_w/2)]
+
+    α = α*180/pi #degrees
 
     #@show(α)
     #@show(β*180/pi)
@@ -87,9 +94,15 @@ end
         table_aero_chebyshev(α, 0.0, 181.0, C_τY);
         table_aero_chebyshev(α, 0.0, 181.0, C_τZ)] #given the plotted coeff curve but...
 
+    Cd = [table_aero_chebyshev(α, 0.0, 181.0, DX);
+        table_aero_chebyshev(α, 0.0, 181.0, DY);
+        table_aero_chebyshev(α, 0.0, 181.0, DZ)]
+
+    Cτ_final = [Cτ[1] - ω[1]*(L_ref/norm(v_body))*Cd[1]; Cτ[2] - ω[2]*(L_ref/norm(v_body))*Cd[2]; Cτ[3] - ω[3]*(L_ref/norm(v_body))*Cd[3]]
+
     h = (norm(r)-Re)
     F_aero_v = -0.5*exponential_atmosphere(h)*((norm(v_rel))^2)*CF*A_ref
-    τ_aero_v = -0.5*exponential_atmosphere(h)*((norm(v_rel))^2)*Cτ*A_ref*L_ref
+    τ_aero_v = -0.5*exponential_atmosphere(h)*((norm(v_rel))^2)*Cτ_final*A_ref*L_ref
     F_aero_eci = qrot(qmult(q, q_v_b), F_aero_v)
     τ_aero_body = qrot(q_v_b, τ_aero_v)
 

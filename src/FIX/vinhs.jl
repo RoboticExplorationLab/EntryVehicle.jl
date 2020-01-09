@@ -18,6 +18,7 @@ include("quaternions.jl")
 a = 1
 
 function vinhs_model(t, u, p)
+    #neglect the effects of oblateness and the transport terms in ω^2
     du = zeros(length(u))
     r, θ, ϕ, v, γ, ψ = u #state vector
     #theta is basically longitude
@@ -34,13 +35,21 @@ function vinhs_model(t, u, p)
     C_γ = 2*ω*cos(ψ)*cos(ϕ) #Coriolis
     C_ψ = 2*ω*(tan(γ)*sin(ψ)*cos(ϕ)-sin(ϕ)) #Coriolis
 
-    C_D = table_CD[16]
-    C_L = table_CL[16]
+    if  t <= 50.0
+        α = 50
+    else
+        α = -t+110
+    end
+
+    α = floor(Int, α)
+
+    C_D = table_CD[α]
+    C_L = table_CL[α]
 
     m = 600.0 # kg
     Re = 3389.5*1e3 #m
     h = r - Re #m
-    D = 0.5*exponential_atmosphere(h)*v^2*(A_ref/m)*C_D
+    D = 0.5*exponential_atmosphere(h)*v^2*(A_ref/m)*C_D #Drag Acceleration
     L = 0.5*exponential_atmosphere(h)*v^2*(A_ref/m)*C_L
 
     du[1] = v*sin(γ)
@@ -55,6 +64,68 @@ function vinhs_model(t, u, p)
         return zeros(6)
     end
 end
+
+function vinhs_full_model(t, u, p)
+    #no winds
+    du = zeros(length(u))
+    r, θ, ϕ, v, γ, ψ = u #state vector
+    #theta is basically longitude
+    #phi is the latitude
+    σ = p[1] #bank angle (control input)
+
+    #parameters
+    req = 3396.2*1e3
+    J2 = 1.96*1e-3
+    ω = 7.095*10^(-5) #rad.s-1 MARS
+    μ =  4.282837*1e13 #m3.s-2
+
+    #gravity
+    g_r = -μ/(r^2)*(1-1.5*J2*((req/r)^2)*(3*(sin(ϕ)^2)-1))
+    g_ϕ = -3*J2*(μ/(r^2))*((req/r)^2)*sin(ϕ)*cos(ϕ)
+
+    #Coriolis terms
+    C_γ = 2*ω*cos(ψ)*cos(ϕ) #Coriolis
+    C_ψ = 2*ω*(tan(γ)*sin(ψ)*cos(ϕ)-sin(ϕ)) #Coriolis
+
+    #Transport terms
+    Γ_v = r*(ω^2)*cos(ϕ)*(sin(γ)*cos(ϕ)-cos(γ)*sin(ψ)*sin(ϕ))
+    Γ_γ = (r/v)*(ω^2)*cos(ϕ)*(sin(γ)*sin(ψ)*sin(ϕ)+cos(γ)*cos(ϕ))
+    Γ_ψ = -(r/v)*(ω^2)*(cos(ψ)*sin(ϕ)*cos(ϕ))/(cos(γ))
+
+
+    if  t <= 50.0
+        α = 50
+    else
+        α = -t+110
+    end
+
+
+    α = floor(Int, α)
+
+    C_D = table_CD[α]
+    C_L = table_CL[α]
+
+    m = 600.0 # kg
+    Re = 3389.5*1e3 #m
+    h = r - Re #m
+    D = 0.5*exponential_atmosphere(h)*v^2*(A_ref/m)*C_D #Drag Acceleration
+    L = 0.5*exponential_atmosphere(h)*v^2*(A_ref/m)*C_L
+
+    #1-3 are same as simplified version
+    du[1] = v*sin(γ)
+    du[2] = (v/r)*(cos(γ)*cos(ψ)/cos(ϕ))
+    du[3] = (v/r)*cos(γ)*sin(ψ)
+    du[4] = -D+g_r*sin(γ)+g_ϕ*cos(γ)*sin(ψ) + Γ_v
+    du[5] = (1/v)*(L*cos(σ)+g_r*cos(γ)-g_ϕ*sin(γ)*sin(ψ))+(v/r)*cos(γ) + C_γ + Γ_γ
+    du[6] = -(1/(v*cos(γ)))*(L*sin(σ)-g_ϕ*cos(ψ)) -(v/r)*cos(γ)*cos(ψ)*tan(ϕ) +C_ψ + Γ_ψ
+    if h>0.0
+        return du
+    else
+        return zeros(6)
+    end
+end
+
+
 
 function rk4(f, y_0, p, dt, t_span)
     T = t_span[1]:dt:t_span[end]
@@ -80,28 +151,44 @@ function rk4(f, y_0, p, dt, t_span)
     return T, y'
 end
 
+function specific_energy(V, r)
+    μ = 4.282837*1e13 #m3.s-2
+    E = 0.5*V^2-(μ/r) #specific energy
+    return E
+end
+
+
 ###############################################################################
 #################### Regular Integration ######################################
 ###############################################################################
 
-
 δ = 70.0*pi/180.0
 r_min = 0.2
-r_cone = 0.3
-r_G = [0.2; 0.0; 0.3]
+r_cone = 1.3
+r_G = [0.0; 0.0; -0.189]
 A_ref = pi*r_cone^2
 table_CD, table_CL = drag_lift_table(δ, r_min, r_cone, r_G)
 
-u0 = [(122+3389.5)*1e3; 0.0; 0.0; 7.032*1e3; -15.0*pi/180; 0.0]
-t_sim4, Z4 = rk4(vinhs_model, u0, [45.0*pi/180], 0.01, [0.0; 90.0])
+u0 = [(125+3389.5)*1e3; 0.0; 0.0; 7.032*1e3; -15.0*pi/180; 0.0]
+t_sim4, Z4 = rk4(vinhs_full_model, u0, [45*pi/180], 0.01, [0.0; 100.0])
 
+Plots.plot(Z4[4, :]*1e-3, (Z4[1, :].-(3389.5*1e3))*1e-3)
 Plots.plot(t_sim4, Z4[1, :])
 Plots.plot(t_sim4, Z4[2, :])
 Plots.plot(t_sim4, Z4[3, :])
 Plots.plot(t_sim4, Z4[4, :])
-Plots.plot!(t_sim4, Z4[5, :])
-Plots.plot!(t_sim4, Z4[6, :])
+Plots.plot(t_sim4, Z4[5, :])
+Plots.plot(t_sim4, Z4[6, :])
 
+#Specific and normalized energy
+E = [specific_energy(Z4[4, i], Z4[1, i]) for i=1:1:length(t_sim4)]
+Plots.plot(t_sim4, [specific_energy(Z4[4, i], Z4[1, i]) for i=1:1:length(t_sim4)])
+
+Ei = specific_energy(Z4[4, 1], Z4[1, 1])
+Ef = specific_energy(Z4[4, end], Z4[1, end])
+Plots.plot(t_sim4, (E.-Ei)./(Ef-Ei))
+
+a=1
 
 ###############################################################################
 ######################### Uncertainty Propagation #############################
@@ -148,7 +235,7 @@ function prop_points_rk(X, t, dt, u)
     m = length(X[1, :])
     Xnew = zeros(size(X))
     for i=1:1:m
-        t_sim, Z = rk4(vinhs_model, X[:, i], [45.0*pi/180], 0.01, [0.0, dt])#integration2(dyna_coeffoff_inplace!, X[:, i], dt)
+        t_sim, Z = rk4(vinhs_model, X[:, i], [45.0*pi/180], 0.01, [t, t+dt])#integration2(dyna_coeffoff_inplace!, X[:, i], dt)
         #rk4(dyna_coeffoff, X[:, i], u, 0.001, [0.0, dt])
         @show(i)
         Xnew[:, i] = Z[:, end]
@@ -193,6 +280,7 @@ function uncertainty_propagation(A0, b0, t_start, t_end, dtt)
     Alist = zeros(n, n, length(T))
     centerlist = zeros(n, length(T))
     XX = zeros(n, 2*n+1, length(T))
+    u =[45.0*pi/180]
     for i=1:1:length(T)
         t = T[i]
         @show(t)
@@ -232,7 +320,7 @@ function X_lims(X)
     return lim
 end
 
-x0 = [(122+3389.5)*1e3/(3389.5*1e3); 0.0; 0.0; 7.032*1e3/(1e3*7.00); -15.0*pi/180; 0.0]
+x0 = [(125+3389.5)*1e3/(3389.5*1e3); 0.0; 0.0; 7.032*1e3/(1e3*7.00); -15.0*pi/180; 0.0]
 Q0 = Diagonal([(50.0/(1e3*3389.5))^2; (0.00017)^2; 0.00017^2; (1.0/(1e3*7.00))^2; (0.001)^2; (0.001)^2])
 Q0 = Matrix(Q0)
 A0 = inv(sqrt(Q0))
@@ -245,9 +333,10 @@ a=1
 
 Alist, blist, centerlist, XX, T = uncertainty_propagation(A0, b0, t_start, t_end, dtt)
 
+Plots.plot!(t_sim4, Z4[6, :])
 Plots.scatter(T, centerlist[1, :]*1e3*3389.5)
 Plots.scatter(T, centerlist[4, :]*7.00*1e3)
-Plots.scatter(T, centerlist[3, :])
+Plots.scatter(T, centerlist[6, :])
 
 X_lims(XX[:, :, end])
 
@@ -256,6 +345,8 @@ F = eigen(W)
 F.values
 
 uncertainty(Alist)
+
+Plots.scatter(centerlist[4, :]*7.00*1e3, centerlist[1, :]*1e3*3389.5)
 
 
 ###############################################################################
@@ -275,13 +366,12 @@ function generate_samples(x_0, Q, M)
     return X_samples
 end
 
-model = "vinhs_model"
 
 function prop_MC_entry(X_samples, t_start, t_end, dt, p, model)
     n, M = size(X_samples)
     #saveAT = 1.0
-    T = t_start:dt:t_end
-    traj = zeros(n, length(T), M)
+    TT = t_start:dt:t_end
+    traj = zeros(n, length(TT), M)
     for i=1:1:M
         @show(i)
         x_ini = X_samples[:, i]
@@ -290,9 +380,44 @@ function prop_MC_entry(X_samples, t_start, t_end, dt, p, model)
         t_sim, Z = rk4(model, x_ini, p, dt, [t_start, t_end])
         traj[:, :, i] = Z
     end
-    return traj
+    return traj, TT
 end
 
-X_samples = generate_samples(x0, Q0, 10)
+x0 = [(122+3389.5)*1e3; 0.0; 0.0; 7.032*1e3; -15.0*pi/180; 0.0]
+Q0 = Diagonal([(50.0^2); (0.00017)^2; 0.00017^2; (1.0)^2; (0.001)^2; (0.001)^2])
+X_samples = generate_samples(x0, Q0, 100000)
 p = [45.0*pi/180]
-traj = prop_MC_entry(X_samples, 0.0, 80.0, 0.01, p)
+traj, TT = prop_MC_entry(X_samples, 0.0, 90.0, 0.01, p, vinhs_model)
+
+function mean_var_MC(traj)
+    n, t, M = size(traj)
+    avg = zeros(n, t)
+    var = zeros(n, n, t)
+    for i=1:1:t
+        @show(i)
+        S = zeros(n)
+        V = zeros(n, n)
+        for j=1:1:M
+            S += traj[:, i, j]
+        end
+        avg[:, i] = S/M
+        for k =1:1:M
+            V+= (traj[:, i, k]-avg[:, i])*(traj[:, i, k]-avg[:, i])'
+        end
+        var[:, :, i] = V/M
+    end
+    return avg, var
+end
+
+avg, var = mean_var_MC(traj)
+
+Plots.plot!(TT, avg[6, :])
+Plots.scatter(T, centerlist[6, :])
+Plots.plot(TT, var[6, 6, :].^0.5)
+
+
+F = eigen(inv(Alist[:, :, end]))
+F.values
+
+
+X_lims(traj[:, end, :])

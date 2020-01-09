@@ -5,6 +5,18 @@ function exponential_atmosphere(h)
     ρ = ρ0*exp(-h/h0)
 end
 
+function speed_sound(h)
+    #returns speed of sound with respect to altitude (fit model for h in m)
+    #h in M
+    #martian atmopshere data
+    β0 = 223.8
+    β1 = -0.0002004
+    β2 = -1.588e-8
+    β3 = 1.404e-13
+    v_s = β0 + β1*h + β2*h^2 + β3*h^3
+    return v_s
+end
+
 a=1
 
 #test for offline coefficients computation
@@ -13,6 +25,7 @@ function compute_aero2(δ, r_min, r_cone, r_G, α)
     #general case: v is the relative velocity of spacecraft wrt atm
     CF_aero_body = [0.0;0.0;0.0]
     Cτ_aero_body = [0.0;0.0;0.0]
+    Cτ_damping = [0.0;0.0;0.0]
     v_body = [sin(α), 0.0, cos(α)]
     #@show(norm(v))
     #@show(norm(v_body))
@@ -36,10 +49,13 @@ function compute_aero2(δ, r_min, r_cone, r_G, α)
                 τ_element = cross((r_element-r_G), F_element)
                 CF_aero_body = CF_aero_body + F_element #m^2
                 Cτ_aero_body = Cτ_aero_body + τ_element #m^3
+                Cτ_damping[1] += (-4.0*(n̂'*v_body)*((cross(r_element-r_G, n̂)[1])^2)*dA)/(A_ref*(L_ref^2))
+                Cτ_damping[2] += (-4.0*(n̂'*v_body)*((cross(r_element-r_G, n̂)[2])^2)*dA)/(A_ref*(L_ref^2))
+                Cτ_damping[3] += (-4.0*(n̂'*v_body)*((cross(r_element-r_G, n̂)[3])^2)*dA)/(A_ref*(L_ref^2))
             end
         end
     end
-    return CF_aero_body/A_ref, Cτ_aero_body/(A_ref*L_ref)#CF_aero_body*(A_cone/A), Cτ_aero_body*(A_cone/A); #CF_aero_body, Cτ_aero_body  #
+    return CF_aero_body/A_ref, Cτ_aero_body/(A_ref*L_ref), Cτ_damping#CF_aero_body*(A_cone/A), Cτ_aero_body*(A_cone/A); #CF_aero_body, Cτ_aero_body  #
 end
 
 function table_aero(δ, r_min, r_cone, r_G)
@@ -59,6 +75,7 @@ function compute_aero_sphere(δ, r_min, r_cone, r_G, α)
     #general case: v is the relative velocity of spacecraft wrt atm
     CF_aero_body = [0.0;0.0;0.0]
     Cτ_aero_body = [0.0;0.0;0.0]
+    Cτ_damping = [0.0;0.0;0.0]
     v_body = [sin(α), 0.0, cos(α)] #okay convention chosen, fair
     l = (r_cone-r_min)/tan(δ)
     dz = 0.1
@@ -81,10 +98,13 @@ function compute_aero_sphere(δ, r_min, r_cone, r_G, α)
                 τ_element = cross((r_element-r_G), F_element) #okay computed at COM
                 CF_aero_body = CF_aero_body + F_element #m^2
                 Cτ_aero_body = Cτ_aero_body + τ_element #m^3
+                Cτ_damping[1] += (-4.0*(n̂'*v_body)*((cross(r_element-r_G, n̂)[1])^2)*dA)/(A_ref*(L_ref^2))
+                Cτ_damping[2] += (-4.0*(n̂'*v_body)*((cross(r_element-r_G, n̂)[2])^2)*dA)/(A_ref*(L_ref^2))
+                Cτ_damping[3] += (-4.0*(n̂'*v_body)*((cross(r_element-r_G, n̂)[3])^2)*dA)/(A_ref*(L_ref^2))
             end
         end
     end
-    return CF_aero_body/A_ref, Cτ_aero_body/(A_ref*L_ref)  #CF_aero_body*(A_sphere/A), Cτ_aero_body*(A_sphere/A)
+    return CF_aero_body/A_ref, Cτ_aero_body/(A_ref*L_ref), Cτ_damping #CF_aero_body*(A_sphere/A), Cτ_aero_body*(A_sphere/A)
 end
 
 function table_aero_spherecone(δ, r_min, r_cone, r_G)
@@ -94,6 +114,7 @@ function table_aero_spherecone(δ, r_min, r_cone, r_G)
     n = length(α)
     table_CF = zeros(n, 3)
     table_Cτ = zeros(n, 3)
+    table_damping = zeros(n, 3)
     r_sphere = r_min/cos(δ) #radius where cone is cut
     A_ref_s = pi*r_sphere^2
     L_ref_s = r_sphere
@@ -102,12 +123,13 @@ function table_aero_spherecone(δ, r_min, r_cone, r_G)
     A_ref = pi*r_cone^2
     L_ref = r_cone
     for i = 1:n
-        CF_cone, Cτ_cone = compute_aero2(δ, r_min, r_cone, r_G, α[i]*pi/180)
-        CF_sphere, Cτ_sphere = compute_aero_sphere(δ, r_min, r_cone, r_G, α[i]*pi/180)
+        CF_cone, Cτ_cone, Cd_cone = compute_aero2(δ, r_min, r_cone, r_G, α[i]*pi/180)
+        CF_sphere, Cτ_sphere, Cd_sphere = compute_aero_sphere(δ, r_min, r_cone, r_G, α[i]*pi/180)
         table_CF[i, :] = (CF_cone*A_ref_c+CF_sphere*A_ref_s)/A_ref
         table_Cτ[i, :] = (Cτ_cone*A_ref_c*L_ref_c+Cτ_sphere*A_ref_s*L_ref_s)/(A_ref*L_ref)
+        table_damping[i, :] = (Cd_cone*A_ref_c*L_ref_c+Cd_sphere*A_ref_s*L_ref_s)/(A_ref*L_ref)
     end
-    return table_CF, table_Cτ
+    return table_CF, table_Cτ, table_damping
 end
 
 function drag_lift_coeff(δ, r_min, r_cone, r_G, α)
@@ -146,7 +168,7 @@ end
 δ = 70*pi/180
 r_min = 0.09144*cos(δ)
 r_cone = 0.762/2
-r_G = [0.0; 0.0; 0.3]
+r_G = [0.0; 0.0; -0.1]
 
 t1, t2 = table_aero(δ, r_min, r_cone, r_G)
 table_CF, table_Cτ = table_aero_spherecone(δ, r_min, r_cone, r_G)
@@ -166,3 +188,8 @@ p2 = Plots.plot(α, t1[1:61, 3])
 p3 = Plots.plot(α, t2[1:61, 2])
 Plots.plot(p1, p2, p3, layout = (1, 3), legend = false)
 savefig("aero_coeff") =#
+
+#=speed of sound tests
+H = 0.0:1000.0:150000.0
+V = [speed_sound(h) for h in H]
+Plots.plot(H/(1e3), V) =#
