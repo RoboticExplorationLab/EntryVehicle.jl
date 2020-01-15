@@ -16,6 +16,7 @@ include("quaternions.jl")
 include("traj_plots.jl")
 include("interpolation.jl")
 include("ellipsoid.jl")
+include("space_mechanics.jl")
 
 
 a=1
@@ -96,10 +97,15 @@ M = hcat(x_b, y_b, z_b)
 Q = mat2quat(M)
 Q = qconj(Q)
 
+#corresponding flight-path angle
+r_eci = [(3389.5+125)*1e3; 0.0; 50.0]
+r_entry3DOF = ecef2entry3DOF([r_eci; v_eci])
+γ = r_entry3DOF[5]*180/pi
+
 #state ini
 v_eci = [-0.001; 1.0; 0.0001]*1e3
 x0 = [(3389.5+125)*1e3; 0.0; 50.0; Q[1]; Q[2]; Q[3]; Q[4]; v_eci; 0.0; 0.0; 0.0]
-t_sim4, Z4 = rk4(dyna_coeffoff_COM_on_axis, x0, [0.0], 0.01, [0.0, 150.0])
+t_sim4, Z4 = rk4(dyna_coeffoff_COM_on_axis, x0, [0.0], 0.01, [0.0, 100.0])
 t_sim4, Z4 = rk4(dyna_coeffon_COM_on_axis, x0, [0.0], 0.05, [0.0, 230.0])
 
 
@@ -123,7 +129,7 @@ plot_mach_number_altitude(Z4, t_sim4)
 savefig("mach")
 plot_specific_energy(Z4, t_sim4)
 
-Plots.plot(t_sim4, Z4[3, :])
+Plots.plot!(t_sim4, Z4[10, :])
 
 a=1
 
@@ -139,7 +145,7 @@ Q0 = Matrix(Q0)
 A0 = inv(sqrt(Q0))
 b0 = -A0*x0_12
 
-Alist, blist, centerlist, XX, ref, TT = ellipse_propagation(A0, b0, 0.0, 90.0, 1.0)
+Alist, blist, centerlist, XX, ref, TT = ellipse_propagation(A0, b0, 0.0, 100.0, 1.0)
 
 uncertainty(Alist)
 
@@ -199,12 +205,13 @@ plot_traj_center(centerlist, TT)
 
 Plots.scatter(centerlist[1, :]*3389.5*1e3, centerlist[2, :]*3389.5*1e3)
 
-Plots.scatter(TT, centerlist[1, :]*3389.5*1e3)
+Plots.scatter(TT[1:80], centerlist[1, 1:80]*3389.5*1e3)
 Plots.scatter(TT, centerlist[6, :])
 Plots.scatter!(TT, centerlist[9, :]*1e3*7.00)
 Plots.scatter(TT, centerlist[10, :])
 
-Plots.plot!(t_sim4, Z4[10, :])
+Plots.plot(TT, centerlist[1, :]*3389.5*1e3)
+Plots.plot!(t_sim4, Z4[1, :])
 
 
 uncertainty(Alist)
@@ -279,10 +286,10 @@ e = quat2euler(Q)
 norm(e)
 e/(norm(e))
 x0_12 = [(3389.5+125)*1e3; 0.0; 50.0; e; v_eci; 0.0; 0.0; 0.0]
-Q0 = Diagonal([(50.0)^2;(50.0)^2;(50.0)^2; 0.005^2; 0.005^2; 0.005^2; (1e-3)^2; (1e-3)^2; (1e-3)^2; (1e-40)^2; (1e-40)^2;(1e-40)^2])
-X_samples = generate_samples(x0_12, Q0, 500)
+Q0 = Diagonal([(50.0)^2;(50.0)^2;(0.1)^2; 0.005^2; 0.005^2; 0.005^2; (1e-3)^2; (1e-3)^2; (1e-4)^2; (1e-40)^2; (1e-40)^2;(1e-40)^2])
+X_samples = generate_samples2(x0_12, Q0, 500)
 p = [0.0]
-traj, TT = prop_MC_entry(X_samples, 0.0, 150.0, 0.01, p, dyna_coeffoff_COM_on_axis)
+traj, TT = prop_MC_entry(X_samples, 0.0, 100.0, 0.01, p, dyna_coeffoff_COM_on_axis)
 
 a = 1.0
 
@@ -310,3 +317,45 @@ avg, var = mean_var_MC(traj)
 
 Plots.scatter(0.0:0.01:150.0, avg[3, :])
 Plots.plot!(t_sim4, Z4[3, :])
+
+
+S = [inv(Alist[:, :, i])[1, 1] for i=1:1:length(0:1:100)]
+Plots.plot(T, (centerlist[1, :]*3389.5).-3389.5-((Z4[1, 1:100:end]*1e-3).-3389.5))
+Plots.plot!(T, (centerlist[1, :]-S.-1.0)*3389.5-((Z4[1, 1:100:end]*1e-3).-3389.5))
+Plots.plot!(T, (centerlist[1, :]+S.-1.0)*3389.5-((Z4[1, 1:100:end]*1e-3).-3389.5))
+Plots.plot!(TT, ((traj[1, :, 76])-avg[1, :]), linewidth=0.1, legend = false)
+V = [sqrt(var[1, 1, i]) for i=1:1:length(TT)]
+Plots.plot!(TT, (avg[1, :]-Z4[1, :]-3*V))
+Plots.plot!(TT, (avg[1, :]-Z4[1, :]+3*V))
+
+Plots.plot(TT[1:5700], (-3*V[1:5700]))
+Plots.plot(TT, (+3*V))
+
+Plots.plot!(T[1:570], -S[1:570]*1e3*3389.5)
+Plots.plot!(T, +S*1e3*3389.5)
+
+Plots.plot(TT, centerlist[1, :]*1e3*3389.5-Z4[1, 1:10:end])
+Plots.plot!(TT, centerlist[1, 1:]*1e3*3389.5-Z4[1, 1:10:end]+S[1:76]*1e3*3389.5)
+Plots.plot!(T, centerlist[1, :]*1e3*3389.5-Z4[1, 1:10:5001]-S*1e3*3389.5)
+Plots.plot!(T, centerlist[1, :]*1e3*3389.5-Z4[1, 1:10:5001]+S*1e3*3389.5)
+Plots.plot!(TT, traj[1, :, 2]-Z4[1, :], linewidth=0.1, legend = false)
+
+
+S = [inv(Alist[:, :, i])[2, 2] for i=1:1:length(0:1:100)]
+Plots.plot(0:1:75, centerlist[2, 1:76]*1e3*3389.5-Z4[2, 1:100:7501])
+Plots.plot!(0:1:75, centerlist[2, 1:76]*1e3*3389.5-Z4[2, 1:100:7501]+S[1:76]*1e3*3389.5)
+Plots.plot!(0:1:75, centerlist[2, 1:76]*1e3*3389.5-Z4[2, 1:100:7501]-S[1:76]*1e3*3389.5)
+Plots.plot!(T, centerlist[2, :]*1e3*3389.5-Z4[1, 1:10:5001]+S*1e3*3389.5)
+V = [sqrt(var[2, 2, i]) for i=1:1:length(0:0.01:75)]
+Plots.plot!(0:0.01:75, (avg[2, 1:7501]-Z4[2, 1:7501]-3*V))
+Plots.plot!(0:0.01:75, (avg[2, 1:7501]-Z4[2, 1:7501]+3*V))
+
+S = [inv(Alist[:, :, i])[7, 7] for i=1:1:length(0:1:100)]
+Plots.plot(0:1:75, centerlist[7, 1:76]*1e3*7.0-Z4[8, 1:100:7501])
+Plots.plot!(0:1:75, centerlist[7, 1:76]*1e3*7-Z4[8, 1:100:7501]+S[1:76]*1e3*7)
+Plots.plot!(0:1:75, centerlist[7, 1:76]*1e3*7-Z4[8, 1:100:7501]-S[1:76]*1e3*7)
+V = [sqrt(var[8, 8, i]) for i=1:1:length(0:0.01:75)]
+Plots.plot!(0:0.01:75, (avg[8, 1:7501]-Z4[8, 1:7501]-3*V))
+Plots.plot!(0:0.01:75, (avg[8, 1:7501]-Z4[8, 1:7501]+3*V))
+
+Plots.plot!(0:0.01:75, traj[8, 1:7501, 43]-Z4[8, 1:7501], linewidth=0.1, legend = false)

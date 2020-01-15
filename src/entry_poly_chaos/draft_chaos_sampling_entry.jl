@@ -25,12 +25,17 @@ include("animate_sampling.jl")
 
 n = 40 #Number of rec points needed
 d = 5 #higher degree of multivariate polynomials
-op = OrthoPoly("gaussian", d , Nrec=n) #if needed Nrec enables to compute more recurrence coefficients
-op = GaussOrthoPoly(d)
-N = 13 #number of random inputs
-mop = MultiOrthoPoly([op for i=1:N], d)
+op = OrthoPoly("gaussian",  d , Nrec=n) #if needed Nrec enables to compute more recurrence coefficients
+#op = GaussOrthoPoly(d)
+opq = GaussOrthoPoly(d; Nrec=n) #probabilist Hermite
+N = 6 #number of random inputs
+mop = MultiOrthoPoly([opq for i=1:N], d)
 P = mop.dim #total number of Polynomials
 mop.ind
+showbasis(opq; sym="ξ")
+
+
+
 ####################################
 ##############Sampling##############
 ####################################

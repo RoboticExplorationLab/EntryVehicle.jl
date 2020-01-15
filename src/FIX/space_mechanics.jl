@@ -173,7 +173,7 @@ function ecef2entry3DOF(r_ecef)
     ϕ = deg2rad(ϕ)
     r_vec = r_ecef[1:3]
     v_vec = r_ecef[4:6]
-    γ = arcsin(dot(r_vec, v_vec)/(norm(r_vec)*norm(v_vec)))
+    γ = asin(dot(r_vec, v_vec)/(norm(r_vec)*norm(v_vec)))
     ψ = atan(v_vec[3], v_vec[2])
     return [norm(r_vec), θ, ϕ, norm(v_vec), γ, ψ]
 end
@@ -185,8 +185,9 @@ function entry3DOF2ecef(r_entry3dof)
     return [r_ecef; v_ecef]
 end
 
+#=
 r_entry3dof = [(125+3389.5)*1e3; 45*pi/180; 45*pi/180; 7.0; -13.0*pi/180; 0.0]
-entry3DOF2ecef(r_entry3dof)
+entry3DOF2ecef(r_entry3dof) =#
 
 #test space
 #=using LinearAlgebra

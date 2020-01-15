@@ -13,6 +13,7 @@ using MathProgBase
 using Gurobi #works properly but
 using MathOptInterface
 using MosekTools
+using LaTeXStrings
 gr()
 
 ####################################
@@ -27,7 +28,7 @@ function duffing!(du,u,p,t)
     γ = 0.1 #p[4]
     ω = 1.0 #p[5]
     du[1] = u[2]
-    du[2] =  γ*p(t)-δ*u[2]-α*u[1]-β*u[1]^3 -1.0*(u[1])-1.0*(u[2]-2.0)+F(t)[1]
+    du[2] =  γ*p(t)-δ*u[2]-α*u[1]-β*u[1]^3  -0.01*(u[1]-1.0)-0.01*(u[2]-0.0) #+F(t)[1]
 end
 
 function duffing(u,p,t)
@@ -39,7 +40,7 @@ function duffing(u,p,t)
     γ = 0.1 #p[4]
     ω = 1.0 #p[5]
     du[1] = u[2]
-    du[2] =  γ*cos(t)-δ*u[2]-α*u[1]-β*u[1]^3 -1.0*(u[1])-1.0*(u[2]-2.0)+F(t)[1]
+    du[2] =  γ*cos(t)-δ*u[2]-α*u[1]-β*u[1]^3 -0.01*(u[1]-1.0)-0.01*(u[2]-0.0) #+F(t)[1]
     return du
 end
 
@@ -60,7 +61,7 @@ function prop_points_rk(X, dt, t)
     m = length(X[1, :])
     Xnew = zeros(size(X))
     for i=1:1:m
-        t_sim, Z = rk4(duffing, X[:, i], p, 0.0001, tspan) #0.00001
+        t_sim, Z = rk4(duffing, X[:, i], p, 0.001, tspan) #0.00001
         Xnew[:, i] = Z[end, :]
     end
     return Xnew
@@ -81,10 +82,10 @@ function ellipse2points(A, b)
     #@show(z)
     #@show(b)
     for i = 1:n
-        points[:, 6*i-5] = M + 0.5*W[:, i]
-        points[:, 6*i-4] = M - 0.5*W[:, i]
-        points[:, 6*i-3] = M - 0.8*W[:, i]
-        points[:, 6*i-2] = M + 0.8*W[:, i]
+        points[:, 6*i-5] = M + 0.2*W[:, i]
+        points[:, 6*i-4] = M - 0.2*W[:, i]
+        points[:, 6*i-3] = M - 0.4*W[:, i]
+        points[:, 6*i-2] = M + 0.4*W[:, i]
         points[:, 6*i-1] = M - W[:, i]
         points[:, 6*i] = M + W[:, i]
     end
@@ -136,7 +137,7 @@ end
 
 function ellipse2points5(A, b)
     n = length(b)
-    X = zeros(n, 2*n)
+    X = zeros(n, 2*n+1)
     M = -inv(A)*b
     AA = A*A
     C =cholesky(AA)
@@ -148,13 +149,14 @@ function ellipse2points5(A, b)
           X[:, 2*i-1] = M-(1/Σ[i, i])*U[:, i]
           X[:, 2*i] = M+(1/Σ[i, i])*U[:, i]
     end
+    X[:, 2*n+1] = M
     return X
 end
 
 function ellipse2points2(A, b)
     #A is the matrix we obtain from the previous step
     n = length(b)
-    angles = 0.0:0.2:2*pi
+    angles = 0.0:0.2:2*pi #can change that here
     B = zeros(2, length(angles))
     for i = 1:1:length(angles)
           B[:, i] = [cos(angles[i]) - b[1], sin(angles[i]) - b[2]]
@@ -213,15 +215,15 @@ function plot_traj_center(T, centerlist)
     Plots.scatter(X, Y)
 end
 
-function uncertainty(Alist)
+function uncertainty(Alist, T)
     t = length(Alist[1, 1, :])
     U = zeros(t)
     for i=1:1:t
         U[i] = tr(inv(Alist[:, :, i]))
     end
-    Plots.plot(U)
+    Plots.plot(T, U, label = "Ellipses_method")
     Plots.xlabel!("time")
-    Plots.ylabel!("uncertainty matrix trace")
+    Plots.ylabel!("standard_dev")
 end
 
 function rk4(f, y_0, p, dt, t_span)
@@ -261,17 +263,17 @@ a=1
 function step_elli(A1, b1, dtt, t)
     X1 = ellipse2points4(A1, b1)
     X2 = prop_points_rk(X1, dtt, t)
-    #A2, b2 = points2ellipse_mosek(X2)
+    A2, b2 = points2ellipse_mosek(X2)
     #@show(X2)
-    A2, b2 = DRN_algo(X2)
+    #A2, b2 = DRN_algo(X2)
     return X1, X2, A2, b2#, obj
 end
 
 a = 1
 
 function prop2(A1, b1)
-    dtt = 0.1
-    T = 0.0:dtt:200
+    dtt = 0.01
+    T = 0.0:dtt:25.0
     n = 2
     blist = zeros(n, length(T))
     Alist = zeros(n, n, length(T))
@@ -321,30 +323,31 @@ function prop2(A1, b1)
 end
 
 μ = [0.0] #average of the perturbation (Gaussian)
-Σ = [1.0] #covariance matrix
+Σ = [0.01] #covariance matrix
 D = MvNormal(μ, Σ)
 τ = zeros(length(μ))
 rand!(D, τ)
 F(t) = rand!(D, τ)
 
 #PHASE PORTRAIT AND STUFF
-u0 = [0.1; 10.0]
-tspan = (0.0,30.0)
+u0 = [0.1; 0.1]
+tspan = (0.0,25.0)
 p = [-1.0; 1.0; 0.2; 0.1; 1.0]
 M  = t->cos(t)
 prob = ODEProblem(duffing!,u0,tspan, M)
 sol = DifferentialEquations.solve(prob)
-Plots.plot!(sol, vars=(1,2), legend = false)
+Plots.plot(sol, vars=(1,2), legend = false)
 
 Plots.plot(sol, vars=(1))
 Plots.plot!(sol, vars=(2))
-t_sim, Z = rk4(duffing, [1.29; 0.057], p, 0.0001, [50.0;1000.0])
+t_sim, Z = rk4(duffing, [0.1; 0.1], p, 0.01, [0.0;25.0])
 Plots.plot(Z[:, 1], Z[:, 2])
+xlabel!(L"\$\\alpha\$")
 #savefig("Duffing")
 
 #Initialization
-u0 = [0.1; 10.0]
-Q0 = Matrix(Diagonal([0.1, 0.1]))
+u0 = [0.1; 0.1]
+Q0 = Matrix(Diagonal([0.01^2, 0.01^2]))
 A0 = inv(sqrt(Q0)) #matrix at t=0.0
 b0 = -A0*u0 #center at t=0.0
 
@@ -362,9 +365,27 @@ Alist8, blist8, centerlist8, XX8, E8, OBJ8, T8 = prop2(A0, b0)
 
 Alist[:, :, 7] - Alist[:, :, 7]'
 
-Plots.scatter(centerlist[2, :])
+Plots.scatter(centerlist[1, :], centerlist[2, :], label = "Ellipse center", markersize = 2, legend = false)
+Plots.plot!(Z[:, 1], Z[:, 2], label = "Nominal trajectory", linewidth = 1.3)
+
+j = 2500
+angles = 0.0:0.01:2*pi
+B = zeros(2, length(angles))
+for i = 1:1:length(angles)
+    #B[:, i] = [cos(angles[i]) - blist[1, j], sin(angles[i]) - blist[2, j]]
+    B[:, i] = [cos(angles[i]), sin(angles[i])]
+end
+ellipse  = (Alist[1:2, 1:2, j])*0.2 \ B
+Plots.scatter!([centerlist[1, j]], [centerlist[2, j]], markercolor = :green)
+Plots.plot!(centerlist[1, j].+ ellipse[1, :],centerlist[2, j].+ ellipse[2, :], linecolor =:green, linewidth = 2.0)
+Plots.scatter!([Z[floor(Int, j), 1]], [Z[floor(Int, j), 2]])
+xlabel!("position")
+ylabel!("velocity")
+savefig("Duffing_1")
+
+
 plot_traj_center(T, centerlist)
-uncertainty(Alist)
+uncertainty(Alist, T)
 savefig("U_0.5sec")
 Plots.scatter(OBJ)
 Plots.savefig("freq_comput")
@@ -417,62 +438,134 @@ gif(anim, "ellipse_fit.gif", fps = 1)
 using Distributions
 using Random
 
-u0 = [0.1; 10.0]
-σ_x = 0.1 #actual value of one branch of the semi-axe
-σ_y = 0.1
+u0 = [0.1; 0.1]
+σ_x = 0.01 #actual value of one branch of the semi-axe
+σ_y = 0.01
 Q0 = Matrix(Diagonal([σ_x^2, σ_y^2]))
 A0 = inv(sqrt(Q0)) #matrix at t=0.0
 b0 = -A0*u0 #center at t=0.0
 
-Δt = 100.0 #length simulation
-dt = 1.0
+Δt = 25.0 #length simulation
+dt = 0.01
 T = 0.0:dt:Δt
 n = 2
 
-D1 = Uniform(u0[1]-σ_x, u0[1]+σ_x)
-D2 = Uniform(u0[2]-σ_y, u0[2]+σ_y)
+D1 = Uniform(u0[1]-σ_x/2, u0[1]+σ_x/2)
+D2 = Uniform(u0[2]-σ_y/2, u0[2]+σ_y/2)
+D1 = Normal(0.1, 0.003)
+D2 = Normal(0.1, 0.003)
 x1 = zeros(1, 1000)
 x2 = zeros(1, 1000)
 rand!(D1, x1)
 rand!(D2, x2)
 x = vcat(x1, x2)
 
+x = generate_samples2(u0, Q0, 1000)
+
 function prop_MC(x)
     n, m = size(x)
-    saveAT = 1.0
-    tspan = (0.0,100.0)
-    traj = zeros(n, 101, m)
+    #saveAT = 1.0
+    tspan = (0.0,20.0)
+    traj = zeros(n, 2501, m)
     for i=1:1:m
-        Z = zeros(n, 101)
+        Z = zeros(n, 2501)
         u0 = x[:, i]
         #p = [-1.0; 1.0; 0.2; 0.1; 1.0]
-        M  = t->cos(t)
-        prob = ODEProblem(duffing!,u0,tspan,M)
-        sol = DifferentialEquations.solve(prob, saveat = saveAT, abstol = 1e-9, reltol = 1e-9)
-        for j =1:1:101
-            Z[:, j] = (sol.u)[j]
-        end
-        traj[:, :, i] = Z
+        t_sim, Z = rk4(duffing, u0, p, 0.01, [0.0;25.0])
+        #sol= DifferentialEquations.solve(prob)#saveat = saveAT, abstol = 1e-9, reltol = 1e-9)
+        traj[:, :, i] = Z'
     end
     return traj
 end
 
+function mean_var_MC(traj)
+    n, t, M = size(traj)
+    avg = zeros(n, t)
+    var = zeros(n, n, t)
+    for i=1:1:t
+        @show(i)
+        S = zeros(n)
+        V = zeros(n, n)
+        for j=1:1:M
+            S += traj[:, i, j]
+        end
+        avg[:, i] = S/M
+        for k =1:1:M
+            V+= (traj[:, i, k]-avg[:, i])*(traj[:, i, k]-avg[:, i])'
+        end
+        var[:, :, i] = V/M
+    end
+    return avg, var
+end
+
 traj = prop_MC(x)
+
+avg, var = mean_var_MC(traj)
+
+histogram(traj[1, 2000, :], bins=100, legend = false)
+savefig("MC_x_10000_20sec")
+histogram(traj[2, 2000, :], bins = 100, legend = false)
+savefig("MC_xvel_10000_20sec")
+
+minimum(traj[1, 1, :])
+maximum(traj[1, 1, :])
+
+Plots.plot!(avg[1, :], avg[2, :])
+Plots.scatter!(traj[1, 1550, :], traj[2, 1550, :])
+
+Plots.plot!(traj[1, :, 1000], traj[2, :, 1000])
+
+Plots.plot(avg[1, :]-centerlist[1, :], avg[2, :]-centerlist[2, :], legend = false)
+xlabel!("position difference")
+ylabel!("velocity difference")
+savefig("error MC_ellipse")
+
+
+Plots.plot!(T, [tr(sqrt(var[:, :, i])) for i=1:1:length(T)], label="Monte Carlo")
+savefig("sigma_comparison")
+
+
+sqrt(10000)
 
 Plots.scatter!(traj[1, end, :], traj[2, end, :])
 Plots.scatter!(traj[1, 1, :], traj[2, 1, :])
 
+S = [inv(Alist[:, :, i])[1, 1] for i=1:1:length(0.0:0.01:25.0)]
+Plots.plot(T, centerlist[1, :]-Z[:, 1])
+Plots.plot!(T, centerlist[1, :]-Z[:, 1]+S)
+Plots.plot!(T, centerlist[1, :]-Z[:, 1]-S)
+Plots.plot!(T, traj[1, :, 40]-Z[:, 1])
+V = [sqrt(var[1, 1, i]) for i=1:1:length(T)]
+Plots.plot!(T, avg[1, :]-Z[:, 1]-V)
+
+S = [inv(Alist[:, :, i])[2, 2] for i=1:1:length(0.0:0.01:25.0)]
+Plots.plot(centerlist[2, :]-Z[:, 2])
+Plots.plot!(centerlist[2, :]-Z[:, 2]+S)
+Plots.plot!(centerlist[2, :]-Z[:, 2]-S)
+Plots.plot!(traj[2, :, 35]-Z[:, 2])
+
+Plots.plot(centerlist[1, :])
+Plots.plot!(centerlist[1, :]+S)
+Plots.plot!(centerlist[1, :]-S)
+Plots.plot!(traj[1, :, 20])
 
 #Ellipse MC comparison
-anim = @animate for j=2:1:101
+anim = @animate for j=1:100:2500
     scatter(traj[1, j, :], traj[2, j, :], legend = false)
     scatter!(XX[1, :, j], XX[2, :, j])
+    angles = 0.0:0.01:2*pi
+    B7 = zeros(2, length(angles))
+    for i = 1:1:length(angles)
+        B7[:, i] = [cos(angles[i]) - blist[1, j], sin(angles[i]) - blist[2, j]]
+    end
+    ellipse7  = Alist[1:2, 1:2, j] \ B7
+    plot!(ellipse7[1, :], ellipse7[2, :])
     #plot!(sol, vars=(1, 2))
     title!("Ellipse propagation vs MC step =$(j)")
     xlabel!("X")
     ylabel!("̇X")
 end
-gif(anim, "prop_vc_MC_other_sampling_scheme_more_uncer_no_traj.gif", fps = 1)
+gif(anim, "prop_vc_MC.gif", fps = 1)
 
 
 #anim = @animate for j=1:1:50
@@ -542,3 +635,81 @@ A2, b2 = points2ellipse_mosek(X2_af)
 
 A1 = A2
 b1 = b2
+
+################################################################################
+#######################Linear Covariance Analysis###############################
+################################################################################
+
+function matrixx(x0, p)
+    #x0 linearization point
+    α, β, δ, γ, ω = p
+    A = [0.0 1.0;
+         -α-3*β*x0[1]^2-0.01 -δ-0.01]
+    return A
+end
+
+function prop_1(x1, t, p, x0)
+    #x0 nominal traj
+    α, β, δ, γ, ω = p
+    A = matrixx(x0, p)
+    x2 = (A*0.01)*x1 +x1 #+[0.0; γ*cos(ω*t)]*0.01 +x1
+    return x2
+end
+
+function prop(T, x0, Z)
+    T = 0.0:0.01:25.0
+    X = zeros(2, length(T)+1)
+    x1 = x0
+    X[:, 1] = x0
+    for i = 1:1:length(T)
+        t = T[i]
+        x2 = prop_1(x1, t, p, Z[i, :])
+        x1 = x2
+        X[:, i+1] = x2
+    end
+    return X
+end
+
+x0 = [0.01; 0.01]
+X = prop(T, x0, Z)
+
+Plots.plot(X[1, :], X[2, :])
+Plots.plot!(Z[:, 1], Z[:, 2])
+
+μ0 = [0.1; 0.1]
+Σ0 = [0.01^2 0.0; 0.0 0.01^2]
+
+function lincov(μ0, Σ0)
+    T = 0.0:0.01:25.0
+    Q = 1e-10*[1.0 0.0; 0.0 1.0]
+    ΣΣ = zeros(2, 2, length(T)+1)
+    μ = zeros(2, length(T)+1)
+    μ[:, 1] = μ0
+    ΣΣ[:, :, 1] = Σ0
+    μ1 = μ0
+    Σ1 = Σ0
+    for i = 1:1:length(T)
+        t = T[i]
+        w = rand!(MersenneTwister(1234), MultivariateNormal([0.0;0.0], Q), zeros(2))
+        μ2 = (μ1 + duffing(μ1, p, t)*0.01) + w
+        A = matrixx(μ1, p)
+        Σ2 = (A*Σ1*A') + Q
+        Σ1 = Σ2
+        μ1 = μ2
+        μ[:, i+1] = μ2
+        ΣΣ[:, :, i+1] = Σ2
+    end
+    return μ, ΣΣ
+end
+
+T = 0.0:0.01:25.0
+μ, ΣΣ = lincov(μ0, Σ0)
+Plots.plot(μ[1, :], μ[2, :])
+Plots.plot(T, [tr(ΣΣ[:, :, i])) for i=1:1:length(T)])
+
+sqrt(ΣΣ[:, :, 200])
+
+
+################################################################################
+#######################Polynomial Chaos Expansion###############################
+################################################################################

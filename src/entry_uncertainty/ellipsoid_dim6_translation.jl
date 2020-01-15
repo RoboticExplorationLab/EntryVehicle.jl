@@ -124,11 +124,11 @@ function rk4(f, y_0, u, dt, t_span)
     return T, y
 end =#
 
-function prop_points_rk(X, dt, u, w)
+function prop_points_rk(X, t, dt, u)
     m = length(X[1, :])
     Xnew = zeros(size(X))
     for i=1:1:m
-        t_sim, Z = rk4(dyna_coeffoff, X[:, i], u, 0.01, [0.0, dt])#integration2(dyna_coeffoff_inplace!, X[:, i], dt)
+        t_sim, Z = rk4(dyna_coeffoff_COM_on_axis, X[:, i], u, 0.01, [t, t+dt])#integration2(dyna_coeffoff_inplace!, X[:, i], dt)
         #rk4(dyna_coeffoff, X[:, i], u, 0.001, [0.0, dt])
         @show(i)
         Xnew[:, i] = Z[:, end]
@@ -156,9 +156,9 @@ M = [-sin(θ) cos(θ) 0.0;
 Q = mat2quat(M)
 Q = qconj(Q)
 x0 = [(3389.5+125)/Re; 0.0; 0.0; Q[1]; Q[2]; Q[3]; Q[4]; -2.0; 3.0; 0.0; 0.0; 0.0; 0.0] #okay in dimension 13: center at t=0
-x0_6 = [(3389.5+125)/Re; 0.0; 0.0; 0.0; 1.0; 0.0]
+x0_6 = [(3389.5+125)*1e3/(3389.5*1e3); 0.0; 50.0/(3389.5*1e3); v_eci/(7.00*1e3)]
 Q0 = Diagonal(0.00000001*ones(12)) #here we assume the change in a(vector part of the change in quaternion)
-Q0 = Diagonal([(0.1/Re)^2;(0.1/Re)^2;(0.1/Re)^2;(1e-5)^2;(1e-5)^2;(1e-5)^2]) #here we assume the change in a(vector part of the change in quaternion)
+Q0 = Diagonal([(50.0/(3389.5*1e3))^2;(50.0/(3389.5*1e3))^2;(50.0/(3389.5*1e3))^2;(1e-3/(1e3*7.00))^2; (1e-3/(1e3*7.00))^2; (1e-3/(1e3*7.00))^2]) #here we assume the change in a(vector part of the change in quaternion)
 
 #Diagonal([0.1/Re; 0.1/Re; 0.1/Re; 0.01; 0.01; 0.01; 0.01; 0.0001; 0.0001; 0.0001; 0.01; 0.01; 0.01])
 Q0 = Matrix(Q0)
@@ -166,9 +166,9 @@ Q0 = Matrix(Q0)
 A1 = inv(sqrt(Q0))
 b1 = -A1*x0_6
 
-Δt = 300.0 #length simulation
-dt = 1.0
-T = 0.0:dt:Δt
+Δt = 200.0 #length simulation
+dtt = 1.0
+T = 0.0:dtt:Δt
 #T = t_sim_nom
 
 u = [0.0]
@@ -182,15 +182,37 @@ table_CF, table_Cτ = table_aero_spherecone(δ, r_min, r_cone, r_G)
 
 a=1
 
+function scale_up(X1)
+    n, m = size(X1)
+    X2 = X1
+    for i=1:1:m
+        X2[1:3, i] = X1[1:3, i]*(3389.5*1e3)
+        X2[8:10, i] = X1[8:10, i]*(7.00*1e3)
+    end
+    return X2
+end
+
+function scale_down(X1)
+    n, m = size(X1)
+    X2 = X1
+    for i=1:1:m
+        X2[1:3, i] = X1[1:3, i]/(3389.5*1e3)
+        X2[4:6, i] = X1[4:6, i]/(7.00*1e3)
+    end
+    return X2
+end
+
+a=1
+
 function propagation(A1, b1)
-    Re = 3389.5
-    θ = 91*pi/180 #rotation angle about z-axis
-    M = [-sin(θ) cos(θ) 0.0;
-         0.0 0.0 1.0;
-         cos(θ) sin(θ) 0.0]
+    #=θ = 91*pi/180 #rotation angle about z-axis
+    #M = [-sin(θ) cos(θ) 0.0;
+#         0.0 0.0 1.0;
+#         cos(θ) sin(θ) 0.0]
     Q = mat2quat(M)
     Q = qconj(Q)
-    x0 = [(3389.5+125)/Re; 0.0; 0.0; Q[1]; Q[2]; Q[3]; Q[4]; 0.0; 1.0; 0.0; 0.0; 0.0; 0.0]
+    x0 = [(3389.5+125)/Re; 0.0; 0.0; Q[1]; Q[2]; Q[3]; Q[4]; 0.0; 1.0; 0.0; 0.0; 0.0; 0.0]=#
+    x0 = [(3389.5+125)*1e3/(3389.5*1e3); 0.0; 50.0/(3389.5*1e3); Q[1]; Q[2]; Q[3]; Q[4]; v_eci/(7.00*1e3); 0.0; 0.0; 0.0]
     n=6
     blist = zeros(n, length(T))
     Alist = zeros(n, n, length(T))
@@ -200,9 +222,12 @@ function propagation(A1, b1)
         t = T[i]
         @show(t)
         X1 = ellipse2points(A1, b1, x0) #return a set of points in dim 13
-        X2 = prop_points_rk(X1, dt, u, w)
-        X_6, x0 = points13_6(X2)
-        A2, b2 = points2ellipse_mosek(X_6)
+        X2 = scale_up(X1)
+        X3 = prop_points_rk(X2, t, dtt, u)
+        X_6, x0 = points13_6(X3)
+        X4 = scale_down(X_6)
+        #A2, b2 = points2ellipse_mosek(X4)
+        A2, b2 = DRN_algo(X4)
         blist[:, i] = b1
         Alist[:, :, i] = A1
         centerlist[:, i] = -inv(A1)*b1
@@ -228,7 +253,10 @@ plot_traj_center(centerlist)
 uncertainty(Alist)
 lim = X_lims(XX[:, :, end])
 
-Plots.plot(centerlist[1, :], centerlist[2,:])
+Plots.scatter(T, centerlist[3, :]*3389.5*1e3)
+Plots.scatter(T, centerlist[6, :]*1e3*7.00)
+Plots.plot!(t_sim4, Z4[10, :])
+
 Plots.plot(Z4'[1, :], Z4'[2, :])
 t_sim4, Z4 = rk4(dyna_coeffoff, x0, [0.0], 0.001, [0.0, Δt])
 

@@ -50,7 +50,7 @@ function dyna_sat(t, x, u)
     v = norm(x[4:6])
     B = CD*A/m #ballistic coeff
     a_drag = -0.5*v*B*atm_dens(r, ρ0)*x[4:6]
-    x_dot[4:6] = -mu*x[1:3]*(1/(r^3)) #+ a_drag
+    x_dot[4:6] = -mu*x[1:3]*(1/(r^3)) + a_drag
     return x_dot
 end
 
@@ -65,15 +65,16 @@ r_ECI = [rp; 0.0; 0.0] #[km] Starts at perigee
 v_ECI = [0.0; vp; 0.0] #[km.s-1]
 X0 = [r_ECI; v_ECI]
 
-t_span = [0.0, 2000.0]
+t_span = [0.0, 3000.0]
 dt = 0.01
 p = [0.0]
 y_0 = X0
 t_sim, Z = rk4(dyna_sat, y_0, p, dt, t_span)
 
 Plots.plot!(Z[1, :], Z[2, :])
-Plots.plot(t_sim, [norm(Z[1:3, i])-Re for i=1:1:length(t_sim)])
+Plots.plot!(t_sim, [norm(Z[1:3, i])-Re for i=1:1:length(t_sim)])
 
+Plots.plot!(t_sim, Z[3, :])
 
 ################################################################################
 #########################Ellipsoid fit##########################################
@@ -88,13 +89,14 @@ b0 = -A0*x0
 
 function ellipse2points(A, b)
     n = length(b)
-    points2 = zeros(n, 2*n)
+    points2 = zeros(n, 2*n+1)
     M = -inv(A)*b
     W = inv(A)
     for i =1:n
         points2[:, 2*i-1] = M + W[:, i]
         points2[:, 2*i] = M - W[:, i]
     end
+    points2[:, end] = M
     return points2
 end
 
@@ -139,13 +141,13 @@ function prop_points_rk(X, dt)
 end
 
 function propagation(A1, b1)
-    dt = 2.0
-    T = 0.0:dt:2000.0
+    dt = 1.0
+    T = 0.0:dt:3000.0
     n = length(b1)
     blist = zeros(n, length(T))
     Alist = zeros(n, n, length(T))
     centerlist = zeros(n, length(T))
-    XX = zeros(6, 2*n, length(T))
+    XX = zeros(6, 2*n+1, length(T))
     for i=1:1:length(T)
         t = T[i]
         @show(t)
@@ -198,7 +200,16 @@ function uncertainty(Alist)
     Plots.ylabel!("uncertainty matrix trace")
 end
 
+Plots.scatter(centerlist[1, :], centerlist[2, :])
+Plots.scatter(centerlist[6, :])
+Plots.plot!(t_sim, Z[6, :])
 plot_traj_center(T, centerlist)
 Plots.scatter(T, [norm(centerlist[1:3, i])-Re for i=1:1:length(T)])
-X_lims(XX[:, :, end])
+S = X_lims(XX[:, :, end])
 uncertainty(Alist)
+
+
+alt_min = norm(S[1:3, 1])-Re
+alt_max = norm(S[1:3, 2])-Re
+#okay so makes sense, contains the ellipsoid will still contain the nominal alt
+#can we do better by reducing freq ?

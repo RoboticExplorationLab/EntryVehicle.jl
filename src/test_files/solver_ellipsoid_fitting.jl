@@ -141,7 +141,7 @@ function obj(u, X, μ, s)
     n, m = size(X)
     M_inv_2 = compute_M_inv_2(u, X)
     M = compute_M(M_inv_2)
-    return -logdet(M)-μ*sum(log(s[i]) for i=1:1:m)
+    return real(-logdet(M)-μ*sum(log(s[i]) for i=1:1:m))
 end
 
 function grad_obj(u, X)
@@ -205,6 +205,7 @@ function backstep_line_search(u, s, Δu, Δs, X, μ)
         u_new = u + α*Δu
         s_new = s + α*Δs
         obj_new = obj(u_new, X, μ, s_new)
+        #@show(obj_new)
         #@show(is_non_positive_vector(u_new))
         #@show(is_non_positive_vector(s_new))
         #@show(obj_new)
@@ -269,7 +270,7 @@ Plots.scatter(X2[1, :], X2[2, :])
 n, m = size(X);
 Plots.scatter(X[1, :], X[2, :])
 
-M, z = DRN_algo(X2)
+M, z = DRN_algo(X)
 
 angles = 0.0:0.01:2*pi
 B = zeros(2, length(angles))

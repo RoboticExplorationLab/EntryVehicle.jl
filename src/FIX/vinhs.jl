@@ -65,6 +65,12 @@ function vinhs_model(t, u, p)
     end
 end
 
+p = [45*pi/180]
+t = 0.0
+a = [(125+3389.5)*1e3; 0.0; 0.0; 7.032*1e3; -15.0*pi/180; 0.0]
+
+b= 1.0
+
 function vinhs_full_model(t, u, p)
     #no winds
     du = zeros(length(u))
@@ -94,12 +100,12 @@ function vinhs_full_model(t, u, p)
 
 
     if  t <= 50.0
-        α = 50
+        α = 50.0
     else
         α = -t+110
     end
 
-
+    #α = exp(-0.1*t)*cos(t) +15
     α = floor(Int, α)
 
     C_D = table_CD[α]
@@ -157,6 +163,7 @@ function specific_energy(V, r)
     return E
 end
 
+Plots.plot(T,  [exp(-0.1*t)*cos(t) for t in T])
 
 ###############################################################################
 #################### Regular Integration ######################################
@@ -170,15 +177,18 @@ A_ref = pi*r_cone^2
 table_CD, table_CL = drag_lift_table(δ, r_min, r_cone, r_G)
 
 u0 = [(125+3389.5)*1e3; 0.0; 0.0; 7.032*1e3; -15.0*pi/180; 0.0]
-t_sim4, Z4 = rk4(vinhs_full_model, u0, [45*pi/180], 0.01, [0.0; 100.0])
+u1 = [(80+3389.5)*1e3; 0.0; 0.0; 7800; -0.017; 1.571]
+t_sim4, Z4 = rk4(vinhs_full_model, u0, [45*pi/180], 0.01, [0.0; 80.0])
+
+t_sim4, Z4 = rk4(vinhs_model, u1, [0.0], 0.01, [0.0;80.0])
 
 Plots.plot(Z4[4, :]*1e-3, (Z4[1, :].-(3389.5*1e3))*1e-3)
 Plots.plot(t_sim4, Z4[1, :])
+Plots.plot!(t_sim4[6000:8000], Z4[2, 6000:8000])
 Plots.plot(t_sim4, Z4[2, :])
 Plots.plot(t_sim4, Z4[3, :])
 Plots.plot(t_sim4, Z4[4, :])
 Plots.plot(t_sim4, Z4[5, :])
-Plots.plot(t_sim4, Z4[6, :])
 
 #Specific and normalized energy
 E = [specific_energy(Z4[4, i], Z4[1, i]) for i=1:1:length(t_sim4)]
@@ -208,10 +218,45 @@ function ellipse2points(A, b)
     return points2
 end
 
+function ellipse2points_s(A, b)
+    n = length(b)
+    points2 = zeros(n, 2*n+1)
+    M = -inv(A)*b
+    W = inv(A) #W is D^(0.5) if A coming from convex problem is symmetric...
+    for i =1:n
+        σ = W[:, i]/(norm[:, i])
+        points2[:, 2*i-1] = M + σ
+        points2[:, 2*i] = M - σ
+        #@show(points2[:, 2*i])
+    end
+    points2[:, 2*n+1] = M
+    return points2, W
+end
+
+
+function ellipse2points6(A, b)
+    n = length(b)
+    points2 = zeros(n, 6*n+1)
+    M = -inv(A)*b
+    W = inv(A) #W is D^(0.5) if A coming from convex problem is symmetric...
+    for i =1:n
+        points2[:, 6*i-1] = M + W[:, i]
+        points2[:, 6*i-2] = M - W[:, i]
+        points2[:, 6*i-3] = M + 0.5*W[:, i]
+        points2[:, 6*i-4] = M - 0.5*W[:, i]
+        points2[:, 6*i-5] = M + 0.8*W[:, i]
+        points2[:, 6*i] = M - 0.8*W[:, i]
+        #@show(points2[:, 2*i])
+    end
+    points2[:, 6*n+1] = M
+    return points2
+end
+
 function points2ellipse_mosek(X)
     n, m = size(X);
     s = MathOptInterface.LogDetConeTriangle(n)
-    model = Model(with_optimizer(Mosek.Optimizer))
+    model = Model(with_optimizer(Mosek.Optimizer, MSK_DPAR_INTPNT_CO_TOL_DFEAS=10^(-20), MSK_DPAR_INTPNT_CO_TOL_PFEAS=10^(-20), MSK_DPAR_INTPNT_CO_TOL_MU_RED = 10^(-20)))
+    #model = Model(with_optimizer(Mosek.Optimizer))
     @variable(model, A[1:n, 1:n], PSD)
     @variable(model, b[1:n])
     @variable(model , t)
@@ -235,7 +280,7 @@ function prop_points_rk(X, t, dt, u)
     m = length(X[1, :])
     Xnew = zeros(size(X))
     for i=1:1:m
-        t_sim, Z = rk4(vinhs_model, X[:, i], [45.0*pi/180], 0.01, [t, t+dt])#integration2(dyna_coeffoff_inplace!, X[:, i], dt)
+        t_sim, Z = rk4(vinhs_full_model, X[:, i], [45.0*pi/180], 0.01, [t, t+dt])#integration2(dyna_coeffoff_inplace!, X[:, i], dt)
         #rk4(dyna_coeffoff, X[:, i], u, 0.001, [0.0, dt])
         @show(i)
         Xnew[:, i] = Z[:, end]
@@ -245,28 +290,22 @@ end
 
 a =1
 
-function scale_down(X2)
+function scale_down(X2, S)
     n, m = size(X2)
     X3 = zeros(n, m)
     for i=1:1:m
-        X3[1, i] = X2[1, i]/(1e3*3389.5)
-        X3[4, i] = X2[4, i]/(1e3*7.00) #initial velocity
-        X3[2:3, i] = X2[2:3, i]
-        X3[5:6, i] = X2[5:6, i]
+        X3[:, i] = [X2[j,i]/S[j] for j=1:1:n]
     end
     return X3
 end
 
 a=1
 
-function scale_up(X3)
+function scale_up(X3, S)
     n, m = size(X3)
     X4 = zeros(n, m)
     for i=1:1:m
-        X4[1, i] = X3[1, i]*(1e3*3389.5)
-        X4[4, i] = X3[4, i]*(1e3*7.00) #initial velocity
-        X4[2:3, i] = X3[2:3, i]
-        X4[5:6, i] = X3[5:6, i]
+        X4[:, i] = [X3[j, i]*S[j] for j=1:1:n]
     end
     return X4
 end
@@ -285,13 +324,13 @@ function uncertainty_propagation(A0, b0, t_start, t_end, dtt)
         t = T[i]
         @show(t)
         X1 = ellipse2points(A0, b0)
-        X2 = scale_up(X1)
+        X2 = scale_up(X1, S)
         X3 = prop_points_rk(X2, t, dtt, u)
-        X4 = scale_down(X3)
+        X4 = scale_down(X3, S)
         A2, b2 = points2ellipse_mosek(X4)
         blist[:, i] = b0
         Alist[:, :, i] = A0
-        centerlist[:, i] = -inv(A0)*b0
+        centerlist[:, i] = [(-inv(A0)*b0)[j]*S[j] for j=1:n]
         A0 = A2
         b0 = b2
         XX[:, :, i] = X1
@@ -320,11 +359,30 @@ function X_lims(X)
     return lim
 end
 
-x0 = [(125+3389.5)*1e3/(3389.5*1e3); 0.0; 0.0; 7.032*1e3/(1e3*7.00); -15.0*pi/180; 0.0]
-Q0 = Diagonal([(50.0/(1e3*3389.5))^2; (0.00017)^2; 0.00017^2; (1.0/(1e3*7.00))^2; (0.001)^2; (0.001)^2])
-Q0 = Matrix(Q0)
-A0 = inv(sqrt(Q0))
-b0 = -A0*x0
+function ini(x0, U0, S)
+    x0_s = [x0[i]/S[i] for i=1:1:length(S)]
+    U0_s = [(U0[i]/S[i])^2 for i=1:1:length(S)] #contains the sigmas squared
+    Q0 = Matrix(Diagonal(U0_s))
+    A0 = inv(sqrt(Q0))
+    b0 = -A0*x0_s
+    return A0, b0
+end
+
+function center_state_plot(T, centerlist)
+    p1 = Plots.scatter(T, centerlist[1, :], markersize=2)
+    p2 = Plots.scatter(T, centerlist[2, :], markersize=2)
+    p3 = Plots.scatter(T, centerlist[3, :], markersize=2)
+    p4 = Plots.scatter(T, centerlist[4, :], markersize=2)
+    p5 = Plots.scatter(T, centerlist[5, :], markersize=2)
+    p6 = Plots.scatter(T, centerlist[6, :], markersize=2)
+    Plots.plot(p1, p2, p3, p4, p5, p6, layout = (2, 3), legend = false)
+end
+
+S = [3389.53*1e3; 1.0; 1.0; 1e3*7.00; 1.0; 1.0]
+x0 = [(125+3389.5)*1e3; 0.0; 0.0; 7.032*1e3; -15.0*pi/180; 0.0]
+U0 = [50.0; (0.0017); (0.0017); (1.0); (0.0001); (0.0001)]
+A0, b0 = ini(x0, U0, S)
+
 t_start = 0.0
 t_end = 80.0
 dtt = 0.1
@@ -333,21 +391,8 @@ a=1
 
 Alist, blist, centerlist, XX, T = uncertainty_propagation(A0, b0, t_start, t_end, dtt)
 
-Plots.plot!(t_sim4, Z4[6, :])
-Plots.scatter(T, centerlist[1, :]*1e3*3389.5)
-Plots.scatter(T, centerlist[4, :]*7.00*1e3)
-Plots.scatter(T, centerlist[6, :])
-
-X_lims(XX[:, :, end])
-
-W = inv(Alist[:, :, end])
-F = eigen(W)
-F.values
-
+center_state_plot(T, centerlist)
 uncertainty(Alist)
-
-Plots.scatter(centerlist[4, :]*7.00*1e3, centerlist[1, :]*1e3*3389.5)
-
 
 ###############################################################################
 ######################### Monte Carlo Simulation ##############################
@@ -359,13 +404,35 @@ using Random
 function generate_samples(x_0, Q, M)
     #M number of samples
     n = length(x_0)
-    univariate_D_vector = [Uniform(x_0[i]-sqrt(Q[i,i]),x_0[i]+sqrt(Q[i,i])) for i=1:length(x_0)]
-    D = Product(univariate_D_vector)
+    rng = MersenneTwister(1234)
+    MVN = MvNormal(x_0, Q/4)
+    #univariate_D_vector = [Uniform(x_0[i]-sqrt(Q[i,i]),x_0[i]+sqrt(Q[i,i])) for i=1:length(x_0)]
+    #D = Product(univariate_D_vector)
     X_samples = zeros(n, M)
-    rand!(D, X_samples)
+    #rand!(D, X_samples)
+    rand!(MVN, X_samples)
     return X_samples
 end
 
+function generate_samples2(x_0, Q, M)
+    #M number of samples
+    n = length(x_0)
+    rng = MersenneTwister(1234)
+    #MVN = MvNormal(x_0, Q)
+    X_samples = zeros(n, M)
+    univariate_D_vector = [Uniform(x_0[i]-sqrt(Q[i,i]),x_0[i]+sqrt(Q[i,i])) for i=1:length(x_0)]
+    D = Product(univariate_D_vector)
+    c = 0
+    while c < M
+        @show(c)
+        X = rand!(D, zeros(n))
+        if (X-x_0)'*inv(Q)*(X-x_0) <= 1.0
+            X_samples[:, c+1] = X
+            c +=1
+        end
+    end
+    return X_samples
+end
 
 function prop_MC_entry(X_samples, t_start, t_end, dt, p, model)
     n, M = size(X_samples)
@@ -383,11 +450,11 @@ function prop_MC_entry(X_samples, t_start, t_end, dt, p, model)
     return traj, TT
 end
 
-x0 = [(122+3389.5)*1e3; 0.0; 0.0; 7.032*1e3; -15.0*pi/180; 0.0]
-Q0 = Diagonal([(50.0^2); (0.00017)^2; 0.00017^2; (1.0)^2; (0.001)^2; (0.001)^2])
-X_samples = generate_samples(x0, Q0, 100000)
+x0 = [(125+3389.5)*1e3; 0.0; 0.0; 7.032*1e3; -15.0*pi/180; 0.0]
+Q0 = Diagonal([(50.0^2); (0.0017)^2; (0.0017)^2; (1.0)^2; (0.0001)^2; (0.0001)^2])
+X_samples = generate_samples2(x0, Q0, 10000)
 p = [45.0*pi/180]
-traj, TT = prop_MC_entry(X_samples, 0.0, 90.0, 0.01, p, vinhs_model)
+traj, TT = prop_MC_entry(X_samples, 0.0, 80.0, 0.01, p, vinhs_full_model)
 
 function mean_var_MC(traj)
     n, t, M = size(traj)
@@ -411,13 +478,244 @@ end
 
 avg, var = mean_var_MC(traj)
 
-Plots.plot!(TT, avg[6, :])
-Plots.scatter(T, centerlist[6, :])
-Plots.plot(TT, var[6, 6, :].^0.5)
+
+#Plots
+S = [sqrt(inv(Alist[:, :, i]*Alist[:, :, i])[1, 1]) for i=1:1:length(T)]
+Plots.plot(T, (centerlist[1, :]*3389.5).-3389.5-((Z4[1, 1:100:end]*1e-3).-3389.5))
+Plots.plot!(T, (centerlist[1, :]-S.-1.0)*3389.5-((Z4[1, 1:100:end]*1e-3).-3389.5))
+Plots.plot!(T, (centerlist[1, :]+S.-1.0)*3389.5-((Z4[1, 1:100:end]*1e-3).-3389.5))
+Plots.plot!(TT, ((traj[1, :, 60])-avg[1, :]), linewidth=0.1, legend = false)
+V = [sqrt(var[1, 1, i]) for i=1:1:length(TT)]
+Plots.plot!(TT, (avg[1, :]-Z4[1, :]-3*V))
+Plots.plot!(TT, (avg[1, :]-Z4[1, :]+3*V))
+
+pa = 10
+S = [inv(Alist[:, :, i])[1, 1] for i=1:1:length(T)]*3e3*1e3
+S = [sqrt(inv(Alist[:, :, i]*Alist[:, :, i])[1, 1]) for i=1:1:length(T)]*3389.5*1e3
+Plots.plot(T, centerlist[1, :]-Z4[1, 1:pa:end])
+Plots.plot!(T, centerlist[1, :]-Z4[1, 1:pa:end]-S)
+Plots.plot!(T, centerlist[1, :]-Z4[1, 1:pa:end]+S)
+V = [sqrt(var[1, 1, i]) for i=1:1:length(TT)]
+Plots.plot!(TT, avg[1, :]-Z4[1, :]-3*V, linestyle = :dot, color = :black)
+Plots.plot!(TT, avg[1, :]-Z4[1, :]+3*V, linestyle = :dot, color = :black, legend = false)
+Plots.plot!(TT, [traj[1, :, i]-Z4[1, :] for i=1:1000], linewidth = 0.1, color = :blue)
+
+Plots.plot(T,-S, linestyle = :dash, color = :red)
+Plots.plot!(T,+S, linestyle = :dash, color = :red)
+Plots.plot!(TT, -3*V, linestyle = :dot, color = :black)
+Plots.plot!(TT, +3*V, linestyle = :dot, color = :black)
 
 
-F = eigen(inv(Alist[:, :, end]))
-F.values
+S = [sqrt(inv(Alist[:, :, i]*Alist[:, :, i])[4, 4]) for i=1:1:length(T)]*1e3*7.00
+Plots.plot(T, centerlist[4, :]-Z4[4, 1:pa:end])
+Plots.plot(T, centerlist[4, :]-S-Z4[4,1:pa:end], linestyle = :dash, color = :red)
+Plots.plot!(T, (centerlist[4, :]+S-Z4[4, 1:pa:end]), linestyle = :dash, color = :red)
+V = [sqrt(var[4, 4, i]) for i=1:1:length(TT)]
+Plots.plot!(TT, avg[4, :]-Z4[4, :]-3*V, linestyle = :dot, color = :black)
+Plots.plot!(TT, avg[4, :]-Z4[4, :]+3*V, linestyle = :dot, color = :black, legend = false)
+Plots.plot!(TT, [traj[4, :, i]-Z4[4, :] for i=1:1000], linewidth = 0.1, color = :blue)
+
+Plots.plot(T,-S, linestyle = :dash, color = :red)
+Plots.plot!(T,+S, linestyle = :dash, color = :red)
+Plots.plot!(TT, -3*V, linestyle = :dot, color = :black)
+Plots.plot!(TT, +3*V, linestyle = :dot, color = :black)
+
+c=3
+S = [sqrt(inv(Alist[:, :, i]*Alist[:, :, i])[c, c]) for i=1:1:length(T)]*1.0
+Plots.plot(T, centerlist[c, :]-Z4[c, 1:pa:end])
+Plots.plot(T, centerlist[c, :]-S-Z4[c,1:pa:end], linestyle = :dash, color = :red)
+Plots.plot!(T, (centerlist[c, :]+S-Z4[c, 1:pa:end]), linestyle = :dash, color = :red)
+V = [sqrt(var[c, c, i]) for i=1:1:length(TT)]
+Plots.plot!(TT, avg[c, :]-Z4[c, :]-3*V, linestyle = :dot, color = :black)
+Plots.plot!(TT, avg[c, :]-Z4[c, :]+3*V, linestyle = :dot, color = :black, legend = false)
+Plots.plot!(TT, [traj[c, :, i]-Z4[c, :] for i=1:1000], linewidth = 0.1, color = :blue)
 
 
-X_lims(traj[:, end, :])
+function deviation(Alist)
+    n, n, m = size(Alist)
+    σ = zeros(n, m)
+    for i=1:1:m
+        W = inv(Alist[:, :, i])
+        F = eigen(W)
+        X = F.values
+        σ[:, i] = X
+    end
+    return σ
+end
+σ = deviation(Alist)
+
+###############################################################################
+################################Test MC########################################
+
+function uncertainty_propagation_MC(A0, b0, t_start, t_end, dtt, M)
+    T = t_start:dtt:t_end
+    n = length(b0)
+    blist = zeros(n, length(T))
+    Alist = zeros(n, n, length(T))
+    centerlist = zeros(n, length(T))
+    XX = zeros(n, M+13, length(T))
+    u =[45.0*pi/180]
+    for i=1:1:length(T)
+        t = T[i]
+        @show(t)
+        Q = (inv(A0))^2
+        X12 = generate_samples2(-inv(A0)*b0, Q, M)
+        X13 = ellipse2points(A0, b0)
+        X1 = hcat(X12, X13)
+        X2 = scale_up(X1)
+        X3 = prop_points_rk(X2, t, dtt, u)
+        X4 = scale_down(X3)
+        A2, b2 = points2ellipse_mosek(X4)
+        blist[:, i] = b0
+        Alist[:, :, i] = A0
+        centerlist[:, i] = -inv(A0)*b0
+        A0 = A2
+        b0 = b2
+        XX[:, :, i] = X1
+    end
+    return Alist, blist, centerlist, XX, T
+end
+
+
+x0 = [(125+3389.5)*1e3/(1e3*3389.5); 0.0; 0.0; 7.032*1e3/(1e3); -15.0*pi/180; 0.0]
+Q0 = Diagonal([(50.0/(1e3*3389.5))^2; (0.0017)^2; (0.0017)^2; (1.0/(1e3))^2; (0.0001)^2; (0.0001)^2])
+#Q0 = Diagonal([((10.0/(1e3*3389.5))^2); (0.00017)^2; (0.00017)^2; (1.0/1e3)^2; (0.017)^2; (0.017)^2])
+Q0 = Matrix(Q0)
+A0 = inv(sqrt(Q0))
+b0 = -A0*x0
+t_start = 0.0
+t_end = 50.0
+dtt = 0.1
+M = 100
+
+a=1
+
+Alist, blist, centerlist, XX, T = uncertainty_propagation_MC(A0, b0, t_start, t_end, dtt, M)
+
+
+################################################################################
+##################################PCE###########################################
+################################################################################
+
+
+n = 40 #Number of rec points needed
+d = 5 #higher degree of multivariate polynomials
+op = OrthoPoly("gaussian",  d , Nrec=n) #if needed Nrec enables to compute more recurrence coefficients
+#op = GaussOrthoPoly(d)
+opq = GaussOrthoPoly(d; Nrec=n) #probabilist Hermite
+N = 6 #number of random inputs
+mop = MultiOrthoPoly([opq for i=1:N], d)
+P = mop.dim #total number of Polynomials
+mop.ind
+showbasis(opq; sym="ξ")
+
+
+
+####################################
+##############Sampling##############
+####################################
+
+Ms = 2000 #number of sampled trajectories
+
+Q0 = Matrix(Diagonal([U0[i]^2 for i=1:1:length(U0)]))
+D = MvNormal(x0, Q0/9)
+ξ = zeros(length(x0), Ms)
+rand!(D, ξ) #one column is one state sample in x
+
+#integration parameters
+t0 = 0.0
+dt = 0.1 #stored every unit (no implication on solver)
+tf = 80.0
+t_sim = t0:dt:tf
+w = [0.0158*10^9; 0.0; 0.0; 0.0] #can be varied later
+
+δ = 70*pi/180
+r_cone = 1.3
+r_G = [0.2; 0.0; 0.3]
+table_CF, table_Cτ = table_aero(δ, r_cone, r_G) #offline coefficients computation
+
+
+
+function generate_samples_PCE(t0, tf, dt, ξ, Ms)
+    samples = zeros(6, length(t_sim), Ms)
+    for i=1:1:Ms
+        #one column of Z contains the state at a specific time
+        t_sim, Z = rk4(vinhs_full_model, ξ[:, i], [45.0*pi/180], dt, [t0; tf])
+        samples[:, :, i] = Z
+        @show(i)
+    end
+    return samples
+end
+
+samples = generate_samples_PCE(t0, tf, dt, ξ, Ms)
+
+####################################
+######Coefficients Computation######
+####################################
+
+function compute_Phi_matrix(Ms, P, mop, samples, x0, Q0)
+    Phi = zeros(Ms, P)
+    for i=1:Ms
+        for j=1:1:P
+            vec = [(ξ[k, i]-x0[k])/sqrt(Q0[k, k]) for k=1:1:6]
+            res = PolyChaos.evaluate(mop.ind[j, :], vec, mop)[1]
+            Phi[i, j] = res
+        end
+    end
+    return Phi
+end
+
+function compute_coeff_PCE_step(samples, t, A) #t is the time step we want to look at t belongs to
+    #function computes PCE coefficients for time step t
+    C = zeros(P, 6) #contains coefficients for one time step
+    for i=1:1:6
+        C[:, i] = (A*samples[i, t, :])'
+    end
+    return C
+end
+
+function compute_coeff_PCE_full(samples, Phi)
+    n, t, Ms = size(samples)
+    C = zeros(P, n, t)
+    A = pinv(Phi)
+    T = t0:dt:tf
+    for j = 1:1:length(T)
+        c = compute_coeff_PCE_step(samples, j, A)
+        C[:, :, j] = c
+    end
+    return C
+end
+
+Phi = compute_Phi_matrix(Ms, P, mop, samples, x0, Q0)
+C = compute_coeff_PCE_step(samples, 80, Phi)
+CC = compute_coeff_PCE_full(samples, Phi)
+
+function mean_var_PCE(CC, T)
+    t = length(T)
+    m = zeros(6, t)
+    var = zeros(6, t)
+    for j=1:1:t
+        m[:, j] = CC[1, :, j]
+        for i = 1:1:6
+            var[i, j] = sum(CC[k, i, j]^2 for k=2:1:P)
+        end
+    end
+    return m, var
+end
+
+T = t0:dt:tf
+m_PCE, var_PCE = mean_var_PCE(CC, T)
+Plots.plot(T, m_PCE[1, :])
+Plots.plot!(TT, Z4[1, :])
+VV = [sqrt(var_PCE[1,i]) for i=1:1:length(T)]
+Plots.plot!(T, -VV, linestyle = :dashdotdot, color = :green)
+Plots.plot!(T, +VV, linestyle = :dashdotdot, color = :green)
+
+
+Plots.plot(T, CC[1, 1, :])
+Plots.plot(T, CC[1, 5, :])
+
+size(samples)
+size(Phi)
+
+pinv(Phi)*samples[1, 50, :]
