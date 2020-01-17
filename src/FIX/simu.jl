@@ -131,6 +131,9 @@ plot_specific_energy(Z4, t_sim4)
 
 Plots.plot!(t_sim4, Z4[10, :])
 
+f(u) = dyna_coeffoff_COM_on_axis(3.0, x0, [0.0])
+A = ForwardDiff.jacobian(f, x0)
+
 a=1
 
 #############################################################

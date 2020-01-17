@@ -1,6 +1,8 @@
 function dyna_coeffoff_COM_on_axis(t, x, u)
     ẋ = zeros(13)
 
+    #ẋ = zeros(eltype(x), length(x))
+
     #@show(t)
 
     m_cone = 200.0 #kg

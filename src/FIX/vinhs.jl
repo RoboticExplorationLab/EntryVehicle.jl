@@ -74,6 +74,7 @@ b= 1.0
 function vinhs_full_model(t, u, p)
     #no winds
     du = zeros(length(u))
+    #du = zeros(eltype(u), length(u))
     r, θ, ϕ, v, γ, ψ = u #state vector
     #theta is basically longitude
     #phi is the latitude
@@ -99,6 +100,7 @@ function vinhs_full_model(t, u, p)
     Γ_ψ = -(r/v)*(ω^2)*(cos(ψ)*sin(ϕ)*cos(ϕ))/(cos(γ))
 
 
+
     if  t <= 50.0
         α = 50.0
     else
@@ -107,6 +109,7 @@ function vinhs_full_model(t, u, p)
 
     #α = exp(-0.1*t)*cos(t) +15
     α = floor(Int, α)
+
 
     C_D = table_CD[α]
     C_L = table_CL[α]
@@ -124,13 +127,18 @@ function vinhs_full_model(t, u, p)
     du[4] = -D+g_r*sin(γ)+g_ϕ*cos(γ)*sin(ψ) + Γ_v
     du[5] = (1/v)*(L*cos(σ)+g_r*cos(γ)-g_ϕ*sin(γ)*sin(ψ))+(v/r)*cos(γ) + C_γ + Γ_γ
     du[6] = -(1/(v*cos(γ)))*(L*sin(σ)-g_ϕ*cos(ψ)) -(v/r)*cos(γ)*cos(ψ)*tan(ϕ) +C_ψ + Γ_ψ
+
     if h>0.0
         return du
     else
         return zeros(6)
     end
+    return du
 end
 
+f(u) = vinhs_full_model(0.0, u, [45.0*pi/180])
+
+A = ForwardDiff.jacobian(f, a)
 
 
 function rk4(f, y_0, p, dt, t_span)
@@ -178,7 +186,7 @@ table_CD, table_CL = drag_lift_table(δ, r_min, r_cone, r_G)
 
 u0 = [(125+3389.5)*1e3; 0.0; 0.0; 7.032*1e3; -15.0*pi/180; 0.0]
 u1 = [(80+3389.5)*1e3; 0.0; 0.0; 7800; -0.017; 1.571]
-t_sim4, Z4 = rk4(vinhs_full_model, u0, [45*pi/180], 0.01, [0.0; 80.0])
+t_sim4, Z4 = rk4(vinhs_full_model, u0, [45*pi/180], 0.0001, [0.0; 80.0])
 
 t_sim4, Z4 = rk4(vinhs_model, u1, [0.0], 0.01, [0.0;80.0])
 
@@ -369,12 +377,12 @@ function ini(x0, U0, S)
 end
 
 function center_state_plot(T, centerlist)
-    p1 = Plots.scatter(T, centerlist[1, :], markersize=2)
-    p2 = Plots.scatter(T, centerlist[2, :], markersize=2)
-    p3 = Plots.scatter(T, centerlist[3, :], markersize=2)
-    p4 = Plots.scatter(T, centerlist[4, :], markersize=2)
-    p5 = Plots.scatter(T, centerlist[5, :], markersize=2)
-    p6 = Plots.scatter(T, centerlist[6, :], markersize=2)
+    p1 = Plots.scatter(T, centerlist[1, :]*1e-3, markersize=1, ylabel = "radius [km]", xlabel = "time [s]")
+    p2 = Plots.scatter(T, centerlist[2, :], markersize=1, ylabel = "longitude [rad]", xlabel = "time [s]")
+    p3 = Plots.scatter(T, centerlist[3, :], markersize=1, ylabel = "latitude [rad]" , xlabel = "time [s]")
+    p4 = Plots.scatter(T, centerlist[4, :], markersize=1, ylabel = "velocity [m.s-1]", xlabel = "time [s]")
+    p5 = Plots.scatter(T, centerlist[5, :], markersize=1, ylabel = "flight-path-angle [rad]", xlabel = "time [s]")
+    p6 = Plots.scatter(T, centerlist[6, :], markersize=1, ylabel = "heading angle [rad]", xlabel = "time [s]")
     Plots.plot(p1, p2, p3, p4, p5, p6, layout = (2, 3), legend = false)
 end
 
@@ -420,9 +428,10 @@ function generate_samples2(x_0, Q, M)
     rng = MersenneTwister(1234)
     #MVN = MvNormal(x_0, Q)
     X_samples = zeros(n, M)
-    univariate_D_vector = [Uniform(x_0[i]-sqrt(Q[i,i]),x_0[i]+sqrt(Q[i,i])) for i=1:length(x_0)]
-    D = Product(univariate_D_vector)
-    c = 0
+    #univariate_D_vector = [Uniform(x_0[i]-sqrt(Q[i,i]),x_0[i]+sqrt(Q[i,i])) for i=1:length(x_0)]
+    #D = Product(univariate_D_vector)
+    MVN = MvNormal(x_0, Q/9)
+    #=c = 0
     while c < M
         @show(c)
         X = rand!(D, zeros(n))
@@ -430,7 +439,8 @@ function generate_samples2(x_0, Q, M)
             X_samples[:, c+1] = X
             c +=1
         end
-    end
+    end =#
+    X_samples = rand!(MVN, X_samples)
     return X_samples
 end
 
@@ -489,6 +499,7 @@ V = [sqrt(var[1, 1, i]) for i=1:1:length(TT)]
 Plots.plot!(TT, (avg[1, :]-Z4[1, :]-3*V))
 Plots.plot!(TT, (avg[1, :]-Z4[1, :]+3*V))
 
+T = 0.0:0.1:80.0
 pa = 10
 S = [inv(Alist[:, :, i])[1, 1] for i=1:1:length(T)]*3e3*1e3
 S = [sqrt(inv(Alist[:, :, i]*Alist[:, :, i])[1, 1]) for i=1:1:length(T)]*3389.5*1e3
@@ -498,12 +509,12 @@ Plots.plot!(T, centerlist[1, :]-Z4[1, 1:pa:end]+S)
 V = [sqrt(var[1, 1, i]) for i=1:1:length(TT)]
 Plots.plot!(TT, avg[1, :]-Z4[1, :]-3*V, linestyle = :dot, color = :black)
 Plots.plot!(TT, avg[1, :]-Z4[1, :]+3*V, linestyle = :dot, color = :black, legend = false)
-Plots.plot!(TT, [traj[1, :, i]-Z4[1, :] for i=1:1000], linewidth = 0.1, color = :blue)
+Plots.plot(TT, [traj[1, :, i]-Z4[1, :] for i=1:3000], linewidth = 0.01, color = :blue)
 
-Plots.plot(T,-S, linestyle = :dash, color = :red)
+Plots.plot!(T,-S, linestyle = :dash, color = :red)
 Plots.plot!(T,+S, linestyle = :dash, color = :red)
 Plots.plot!(TT, -3*V, linestyle = :dot, color = :black)
-Plots.plot!(TT, +3*V, linestyle = :dot, color = :black)
+Plots.plot!(TT, +3*V, linestyle = :dot, color = :black, legend = false)
 
 
 S = [sqrt(inv(Alist[:, :, i]*Alist[:, :, i])[4, 4]) for i=1:1:length(T)]*1e3*7.00
@@ -719,3 +730,122 @@ size(samples)
 size(Phi)
 
 pinv(Phi)*samples[1, 50, :]
+
+################################################################################
+#####################Linear Covariance Analysis#################################
+################################################################################
+
+function vinhs_full_model_lincov(t, u, p)
+    #no winds
+    #du = zeros(length(u))
+    du = zeros(eltype(u), length(u))
+    r, θ, ϕ, v, γ, ψ = u #state vector
+    #theta is basically longitude
+    #phi is the latitude
+    σ = p[1] #bank angle (control input)
+
+    #parameters
+    req = 3396.2*1e3
+    J2 = 1.96*1e-3
+    ω = 7.095*10^(-5) #rad.s-1 MARS
+    μ =  4.282837*1e13 #m3.s-2
+
+    #gravity
+    g_r = -μ/(r^2)*(1-1.5*J2*((req/r)^2)*(3*(sin(ϕ)^2)-1))
+    g_ϕ = -3*J2*(μ/(r^2))*((req/r)^2)*sin(ϕ)*cos(ϕ)
+
+    #Coriolis terms
+    C_γ = 2*ω*cos(ψ)*cos(ϕ) #Coriolis
+    C_ψ = 2*ω*(tan(γ)*sin(ψ)*cos(ϕ)-sin(ϕ)) #Coriolis
+
+    #Transport terms
+    Γ_v = r*(ω^2)*cos(ϕ)*(sin(γ)*cos(ϕ)-cos(γ)*sin(ψ)*sin(ϕ))
+    Γ_γ = (r/v)*(ω^2)*cos(ϕ)*(sin(γ)*sin(ψ)*sin(ϕ)+cos(γ)*cos(ϕ))
+    Γ_ψ = -(r/v)*(ω^2)*(cos(ψ)*sin(ϕ)*cos(ϕ))/(cos(γ))
+
+
+    if  t <= 50.0
+        α = 50.0
+    else
+        α = -t+110
+    end
+
+    #α = exp(-0.1*t)*cos(t) +15
+    α = floor(Int, α)
+
+
+    C_D = table_CD[α]
+    C_L = table_CL[α]
+
+    m = 600.0 # kg
+    Re = 3389.5*1e3 #m
+    h = r - Re #m
+    D = 0.5*exponential_atmosphere(h)*v^2*(A_ref/m)*C_D #Drag Acceleration
+    L = 0.5*exponential_atmosphere(h)*v^2*(A_ref/m)*C_L
+
+    #1-3 are same as simplified version
+    du[1] = v*sin(γ)
+    du[2] = (v/r)*(cos(γ)*cos(ψ)/cos(ϕ))
+    du[3] = (v/r)*cos(γ)*sin(ψ)
+    du[4] = -D+g_r*sin(γ)+g_ϕ*cos(γ)*sin(ψ) + Γ_v
+    du[5] = (1/v)*(L*cos(σ)+g_r*cos(γ)-g_ϕ*sin(γ)*sin(ψ))+(v/r)*cos(γ) + C_γ + Γ_γ
+    du[6] = -(1/(v*cos(γ)))*(L*sin(σ)-g_ϕ*cos(ψ)) -(v/r)*cos(γ)*cos(ψ)*tan(ϕ) +C_ψ + Γ_ψ
+
+    if h>0.0
+        return du
+    else
+        return zeros(6)
+    end
+    return du
+end
+
+
+function prop_dyn(u0, tstart, tend, dt)
+    T = tstart:dt:tend
+    p = [45*pi/180]
+    u1 = u0
+    U = zeros(length(u0), length(T)+1)
+    U[:, 1] = u1
+    for i=1:1:length(T)
+        t = T[i]
+        u2 = u1 + vinhs_full_model(t, u1, p)*dt
+        U[:, i] = u2
+        u1 = u2
+    end
+    return U
+end
+
+u0 = [(125+3389.5)*1e3; 0.0; 0.0; 7.032*1e3; -15.0*pi/180; 0.0]
+U = prop_lincov(u0, 0.0, 1.0, 1e-6)
+
+Plots.plot(U[1, :])
+
+#initial dispersion from nominal
+u0
+Q0 = Matrix(Diagonal(U0.^2)/9)
+
+function lincov_prop(x0, Q0, Z4, T)
+    E = zeros(6, length(T))
+    Q = zeros(6, 6, length(T))
+    for i=1:1:length(T)
+        t = T[i]
+        p = [45*pi/180]
+        f(u) = vinhs_full_model_lincov(t, u, p)
+        A = ForwardDiff.jacobian(f, Z4[:, i])
+        Φ = exp(A*t)
+        x = Φ*x0
+        E[:, i] = x
+        Q[:, :, i] = Φ*Q0*Φ'
+    end
+    return E, Q
+end
+
+T = 0.0:0.001:80.0
+E, Q = lincov_prop(u0, Q0, Z4, T)
+
+t_sim4, Z4 = rk4(vinhs_full_model, u0, [45*pi/180], 0.01, [0.0; 80.0])
+Plots.plot!(T, [sqrt(Q[4, 4, i]) for i=1:1:length(T)])
+Plots.plot!(T, -[sqrt(Q[4, 4, i]) for i=1:1:length(T)])
+
+
+Plots.plot(T, E[1, :])
