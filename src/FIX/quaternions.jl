@@ -110,3 +110,27 @@ function euler2quat(e)
     q = exp_quat(V'*e/2)
     return q
 end
+
+
+function mat_euler_rate_quat_rate(e)
+    vv = norm(e)
+    s = sin(vv/2)
+    c = cos(vv/2)
+    a = c*vv-2*s
+    v1, v2, v3 = e
+    first_term = (s/(2*vv))*[-v1 -v2 -v3; 2.0 0.0 0.0; 0.0 2.0 0.0; 0.0 0.0 2.0]
+    sec_term = (a/(2*vv^3))*[0.0 0.0 0.0; v1^2 v1*v2 v1*v3; v1*v2 v2^2 v2*v3; v1*v3 v2*v3 v3^2]
+    return first_term+sec_term
+end
+
+function mat_euler_quat_rate_mat(e)
+    vv = norm(e)
+    s = sin(vv/2)
+    c = cos(vv/2)
+    v1, v2, v3 = e
+    L1 = [-v1*s, vv*c, -v3*s, v2*s]
+    L2 = [-v2*s, v3*s, vv*c, -v1*s]
+    L3 = [-v3*s, -v2*s, v1*s, vv*c]
+    W = (1/vv)*hcat(L1, L2, L3)'
+    return W
+end

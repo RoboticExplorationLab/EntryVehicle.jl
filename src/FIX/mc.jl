@@ -28,7 +28,7 @@ function generate_samples(x_0, Q, M)
     return X_samples
 end
 
-function prop_MC_entry(X_samples, t_start, t_end, dt, p, model)
+function prop_MC(X_samples, t_start, t_end, dt, p, model)
     n, M = size(X_samples)
     #saveAT = 1.0
     T_mc = t_start:dt:t_end
@@ -67,17 +67,17 @@ end
 
 function simu_MC(x0, Q0, M, model, p, t0, tf, dt_mc)
     X_samples = generate_samples(x0, Q0, M)
-    traj, T_mc = prop_MC_entry(X_samples, t0, tf, dt_mc, p, model)#counting prop
+    traj, T_mc = prop_MC(X_samples, t0, tf, dt_mc, p, model)#counting prop
     avg, var = mean_var_MC(traj)
     return T_mc, traj, avg, var
 end
 
-function sig(var, S)
+function sig(var)
     #return 3*sig with respect to time for each state variable
     n, n, t = size(var)
     V = zeros(n, t)
     for i=1:1:n
-        vec = [sqrt(var[i, i, j])*S[i] for j=1:1:t]
+        vec = [sqrt(var[i, i, j]) for j=1:1:t]
         V[i, :] = vec
     end
     return V
@@ -156,11 +156,11 @@ function prop_MC_entry(X_samples, t_start, t_end, dt, p, model)
         t_sim, Z = rk4(model, x_ini, p, dt, [t_start, t_end])
         traj[:, :, i] = point13_12_mc_full(Z)
     end
-    
+
     return traj, TT
 end
 
-
+#=
 function mean_var_MC(traj)
     n, t, M = size(traj)
     avg = zeros(n, t)
@@ -179,7 +179,7 @@ function mean_var_MC(traj)
         var[:, :, i] = V/M
     end
     return avg, var
-end
+end =#
 
 function simu_mc_6dof(x0, Q0, M_mc, model, p, t0, tf, dt_mc)
     X_samples = generate_samples(x0, Q0, M_mc)

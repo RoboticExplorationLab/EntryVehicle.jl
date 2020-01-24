@@ -11,58 +11,9 @@ gr()
 using PyPlot
 pyplot()
 
-#Solve Primal
-function gradient(H, X)
-    #X is the concatenation of the points augmented by 1
-    return -inv(H)
-end
-
-function second_derivative(H, E1, E2)
-    #E1 and E2 are symmetric
-    H_inv = inv(H)
-    return tr(H_inv*E1*H_inv*E2)
-end
-
-#Solve Dual
-function H(u, X)
-    U = Diagonal(u)
-    return X*U*X'
-end
-
-function gradient(u, X, m)
-    #X is the concatenation of the points augmented by 1
-    return [X[:, i]'*H(u, X)*X[:, i] for i=1:1:m]
-end
-
-function hessian(u, X, m)
-    HESS = zeros(m, m)
-    for i = 1:1:m
-        for j = 1:1:m
-            HESS[i, j] = -(X[:, i]'*H(u, X)*X[:, j])^2
-        end
-    end
-    return HESS
-end
-
-function newtons_method(u, ϵ, k_max, X, m)
-    k, Δ = 1, fill(Inf, length(u))
-    while norm(Δ) > ϵ && k <= k_max
-        Δ = inv(hessian(u, X, m))*gradient(u, X, m)
-        u -= Δ
-        k += 1
-        @show(k)
-    end
-    return u
-end
-
-#init
-ϵ = 10^(-9)
-k_max = 10000
-u = [1.0; 2.0; 3.0; 4.0; 5.0; 6.0; 7.0; 8.0; 9.0; 10.0]
-u = newtons_method(u, ϵ, k_max, X, m)
-
-#Other method from the paper, primal dual method implementation
-#reduced optimality conditions
+################################################################################
+########################### DRN algorithm ######################################
+################################################################################
 
 function compute_M_inv_2(u, X)
     n, m = size(X)
@@ -93,6 +44,7 @@ function compute_Σ(u, X)
     n, m = size(X)
     e = ones(m)
     S = compute_M_inv_2(u, X)
+    #@show(S)
     B = (X-X*u*e'/(e'*u))
     Σ = B'*inv(S)*B
     return Σ
@@ -141,7 +93,7 @@ function obj(u, X, μ, s)
     n, m = size(X)
     M_inv_2 = compute_M_inv_2(u, X)
     M = compute_M(M_inv_2)
-    return real(-logdet(M)-μ*sum(log(s[i]) for i=1:1:m))
+    return real(-logdet(M))#-μ*sum(log(s[i]) for i=1:1:m))
 end
 
 function grad_obj(u, X)
@@ -219,12 +171,22 @@ function DRN_algo(X)
     n, m = size(X)
     e = ones(m)
     r = 0.99
+    #test for good application of the algorithm
+    augm_mat = vcat(X, ones(m)')
+    R = rank(augm_mat, atol = 1e-40, rtol = 1e-40)
+    if R != n+1
+        println("RANK Problem")
+        @show(R)
+        @show(X)
+        return 0.0
+    end
+    #@show(X)
     α_ini = 1.0
     u_0 = α_ini*ones(m)
     s_0 = α_ini*ones(m)
     μ = 1.0
     u, s = u_0, s_0
-    ϵ1 = 10^(-3)
+    ϵ1 = 10^(-4)
     ϵ2 = 10^(-9)
     i = 0
     while norm(e-compute_h(u, X)-s) > ϵ1 || (u'*s/obj(u, X, μ, s)) > ϵ2
@@ -232,7 +194,7 @@ function DRN_algo(X)
         μ = (u'*s)/(10*m)
         Δu, Δs = DRN_direction(u, s, μ, X)
         #@show(u)
-        #@show(compute_M(u, X))
+        #@show(compute_M(u, X))v
         #@show(obj(u, X))
         α = backstep_line_search(u, s, Δu, Δs, X, μ)
         #α = minimum([r*α; 1.0])
@@ -249,8 +211,8 @@ function DRN_algo(X)
     return M, -z
 end
 
-D1 = Uniform(-4, 5)
-D2 = Uniform(1.0, 10.0)
+D1 = Uniform(3e-6, 1e-4)
+D2 = Uniform(3e10, 3.1e10)
 x1 = zeros(1, 15)
 x2 = zeros(1, 15)
 rand!(D1, x1)
@@ -282,10 +244,10 @@ Plots.plot!(ellipse[1, :], ellipse[2, :])
 
 function test_DRN(N)
     for i=1:1:N
-        D1 = Uniform(-4, 5)
-        D2 = Uniform(1.0, 10.0)
-        x1 = zeros(1, 4)
-        x2 = zeros(1, 4)
+        D1 = Uniform(1.0, 1.1)
+        D2 = Uniform(3e10, 3.1e10)
+        x1 = zeros(1, 5)
+        x2 = zeros(1, 5)
         rand!(D1, x1)
         rand!(D2, x2)
         X = vcat(x1, x2)
@@ -333,7 +295,7 @@ function points2ellipse_mosek(X)
     return A, b, obj
 end
 
-A, b = points2ellipse_mosek(X2)
+A, b = points2ellipse_mosek(X)
 
 angles = 0.0:0.01:2*pi
 B = zeros(2, length(angles))

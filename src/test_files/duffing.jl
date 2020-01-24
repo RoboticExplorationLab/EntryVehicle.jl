@@ -48,6 +48,20 @@ function duffing(t,u,p)
     return du
 end
 
+function duffing_lincov(t,u,p)
+    # p = α, β, δ, γ, ω
+    du = zeros(eltype(u), length(u))
+    α = -1.0 #p[1]
+    β = 1.0 #p[2]
+    δ = 0.2 #p[3]
+    γ = 0.1 #p[4]
+    ω = 1.0 #p[5]
+    du[1] = u[2]
+    du[2] =  γ*cos(t)-δ*u[2]-α*u[1]-β*u[1]^3 -0.01*(u[1]-1.0)-0.01*(u[2]-0.0) #+F(t)[1]
+    return du
+end
+
+
 function prop_points_continuous(X, dt, t)
     tspan = (t,t+dt) #autonomous system so don't care #NOT ANYMORE HERE THATS WHY
     m = length(X[1, :])

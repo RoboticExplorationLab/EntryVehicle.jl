@@ -59,7 +59,7 @@ end
 function points2ellipse_mosek(X)
     n, m = size(X);
     s = MathOptInterface.LogDetConeTriangle(n)
-    model = Model(with_optimizer(Mosek.Optimizer, MSK_DPAR_INTPNT_CO_TOL_DFEAS=10^(-20), MSK_DPAR_INTPNT_CO_TOL_PFEAS=10^(-20), MSK_DPAR_INTPNT_CO_TOL_MU_RED = 10^(-20)))
+    model = Model(with_optimizer(Mosek.Optimizer, QUIET= true, MSK_DPAR_INTPNT_CO_TOL_DFEAS=10^(-20), MSK_DPAR_INTPNT_CO_TOL_PFEAS=10^(-20), MSK_DPAR_INTPNT_CO_TOL_MU_RED = 10^(-20)))
     #model = Model(with_optimizer(Mosek.Optimizer))
     @variable(model, A[1:n, 1:n], PSD)
     @variable(model, b[1:n])
@@ -68,16 +68,24 @@ function points2ellipse_mosek(X)
     @constraint(model, con[i = 1:m], [1.0; A*X[:, i]+b] in SecondOrderCone())
     V = [A[i, j] for j in 1:1:n for i in 1:1:j] #vectorize form of the matrix
     @constraint(model, [t;1.0;V] in s)
+    #ϵ = 1e-1
+    #I = Diagonal(ones(n))
+    #B = A-ϵ*I
+    #@SDconstraint(model, -B ⪰ 0)
+    #@show(B)
+    #W = [-B[i, j] for j in 1:1:n for i in 1:1:n]
+    #@constraint(model, [0.0;1.0;W] in s)
     #@show(con)
     #MathOptInterface.TimeLimitSec() = 0.5
     JuMP.optimize!(model)
     a = JuMP.termination_status(model)
-    @show(a)
-    @show(objective_value(model))
+    #@show(a)
+    #@show(objective_value(model))
     A = JuMP.value.(A)
     b = JuMP.value.(b)
     return A, b
 end
+
 
 function rk4(f, y_0, p, dt, t_span)
     T = t_span[1]:dt:t_span[end]
@@ -109,7 +117,7 @@ function prop_points_rk(X, t, dt_rk, p, model, dt_e)
     for i=1:1:m
         t_sim, Z = rk4(model, X[:, i], p, dt_rk, [t, t+dt_e])#integration2(dyna_coeffoff_inplace!, X[:, i], dt)
         #rk4(dyna_coeffoff, X[:, i], u, 0.001, [0.0, dt])
-        @show(i)
+        #@show(i)
         Xnew[:, i] = Z[:, end]
     end
     return Xnew
@@ -149,7 +157,7 @@ end
 
 a=1
 
-function uncertainty_propagation(A0, b0, model, t_start, t_end, p, dt_e, dt_rk, scheme, n_scheme)
+function uncertainty_propagation(A0, b0, model, t_start, t_end, p, dt_e, dt_rk, scheme, n_scheme, k, e_solver)
     T_e = t_start:dt_e:t_end
     n = length(b0)
     blist = zeros(n, length(T_e))
@@ -163,7 +171,8 @@ function uncertainty_propagation(A0, b0, model, t_start, t_end, p, dt_e, dt_rk, 
         X2 = scale_up(X1, S)
         X3 = prop_points_rk(X2, t, dt_rk, p, model, dt_e)
         X4 = scale_down(X3, S)
-        A2, b2 = points2ellipse_mosek(X4)
+        A2, b2 = e_solver(X4)
+        #@show(A2)
         blist[:, i] = b0
         Alist[:, :, i] = A0
         centerlist[:, i] = [(-inv(A0)*b0)[j]*S[j] for j=1:n]
@@ -205,11 +214,22 @@ function ini(x0, U0, S)
 end
 
 
-function ellipse_prop(x0, U0, S, t0, tf, dt_rk, dt_e, scheme, n_scheme, model, p)
+function ellipse_prop(x0, U0, S, t0, tf, dt_rk, dt_e, scheme, n_scheme, model, p, k, e_solver)
     A0, b0 = ini(x0, U0, S)
     n = length(b0)
-    Alist, blist, centerlist, XX, T_e = uncertainty_propagation(A0, b0, model, t0, tf, p, dt_e, dt_rk, scheme, n_scheme)
+    Alist, blist, centerlist, XX, T_e = uncertainty_propagation(A0, b0, model, t0, tf, p, dt_e, dt_rk, scheme, n_scheme, k, e_solver)
     return Alist, blist, centerlist, XX, T_e
+end
+
+function sig_e(var, S)
+    #return 3*sig with respect to time for each state variable
+    n, n, t = size(var)
+    V = zeros(n, t)
+    for i=1:1:n
+        vec = [sqrt(var[i, i, j])*S[i] for j=1:1:t]
+        V[i, :] = vec
+    end
+    return V
 end
 
 function variance_e(Alist, S)
@@ -218,8 +238,59 @@ function variance_e(Alist, S)
     for i=1:1:t
         var_e[:, :, i] = inv(Alist[:, :, i]*Alist[:, :, i])
     end
-    V = sig(var_e, S)
+    V = sig_e(var_e, S)
     return V
+end
+
+################################################################################
+####################### Additional functions UKF style #########################
+################################################################################
+
+function ellipse2points_ukf(A, b, k)
+    #k is a sclaing factor
+    n = length(b)
+    points2 = zeros(n, 2*n+1)
+    M = -inv(A)*b
+    Σ_inv = A*A
+    #Σ = inv(A)*(inv(A'))
+    W = cholesky(Σ_inv)
+    #@show(Σ)
+    L = W.L
+    for i =1:n
+        points2[:, 2*i-1] = M + sqrt(n+k)*L[:, i]
+        points2[:, 2*i] = M - sqrt(n+k)*L[:, i]
+        #@show(points2[:, 2*i])
+    end
+    points2[:, 2*n+1] = M #mean at the end
+    @show(points2)
+    return points2
+end
+
+function points2ellipse_mosek_ukf(X)
+    #does not work, need quadratic stuff
+    n, m = size(X);
+    s = MathOptInterface.LogDetConeTriangle(n)
+    model = Model(with_optimizer(Mosek.Optimizer, MSK_DPAR_INTPNT_CO_TOL_DFEAS=10^(-20), MSK_DPAR_INTPNT_CO_TOL_PFEAS=10^(-20), MSK_DPAR_INTPNT_CO_TOL_MU_RED = 10^(-20)))
+    #model = Model(with_optimizer(Mosek.Optimizer))
+    @variable(model, A[1:n, 1:n]) #add PSD
+    @variable(model, b[1:n])
+    @variable(model , t)
+    @objective(model, Max, t)
+    @constraint(model, con[i = 1:m], [1.0; A*X[:, i]+b] in SecondOrderCone())
+    W = [A[i, j] for i in 1:1:n for j in 1:1:i-1]
+    @constraint(model, W .== zeros(length(W))) #remove if not
+    X = A'*A
+    V = [X[i, j] for j in 1:1:n for i in 1:1:j] #vectorize form of the matrix
+    @constraint(model, [t;1.0;V] in s)
+    @show(con)
+    #MathOptInterface.TimeLimitSec() = 0.5
+    JuMP.optimize!(model)
+    a = JuMP.termination_status(model)
+    @show(a)
+    @show(objective_value(model))
+    A = JuMP.value.(A)
+    b = JuMP.value.(b)
+    return A, b
 end
 
 
@@ -274,18 +345,21 @@ Plots.plot(T_e, centerlist[2, :]) =#
 ################################################################################
 
 function ellipse2points(A, b, x0)
+    TT = BigFloat
     n = length(b)
     V = [0.0 1.0 0.0 0.0; 0.0 0.0 1.0 0.0; 0.0 0.0 0.0 1.0]
     points2 = zeros(n, 2*n)
     points3 = zeros(n+1, 2*n+1)
     M = -inv(A)*b
     C = zeros(13, 1) #center of the computed ellipoid in the real 13 dimension
+    @show(M)
     C[1:3] = M[1:3]
     C[4:7] = qmult(x0[4:7], exp_quat(V'*M[4:6]/2)) #still need the reference
     #C[1:4] = [1.0; 0.0; 0.0; 0.0]
     C[8:13] = M[7:12]
     W = inv(A) #W is D^(0.5) if A coming from convex problem is symmetric...
-    #@show(W)
+    @show(W)
+    @show(rank(W))
     for i =1:n
         points2[:, 2*i-1] = M + W[:, i]
         points2[:, 2*i] = M - W[:, i]
@@ -315,24 +389,47 @@ function points13_12(X, x1)
     return X_12
 end
 
+function points13_12_1(X, x1)
+    n = length(X)
+    m=1
+    X_12 = zeros(n-1, m)
+    V = [0.0 1.0 0.0 0.0; 0.0 0.0 1.0 0.0; 0.0 0.0 0.0 1.0]
+    for i=1:m
+        X_12[1:3, i] = X[1:3, i]
+        δq = qmult(qconj(x1[4:7]), X[4:7, i])
+        #X_12[4:6, i] = X[5:7, i] #nah need deltaq with respct to a ref quat
+        #a = qmult(qconj(x1[4:7]), X[4:7, i])
+        X_12[4:6] = 2*V*log_quat(δq)
+        X_12[7:12, i] = X[8:13, i]
+    end
+    return X_12
+end
+
 function ellipse_propagation(A0, b0, tstart, tend, dtt, x0_i, model, p)
     T = tstart:dtt:tend
     n = length(b0)
     blist = zeros(n, length(T))
     Alist = zeros(n, n, length(T))
     centerlist = zeros(n, length(T))
-    XX = zeros(13, 2*n+1, length(T))
+    XX = zeros(13, 6*n+1, length(T))
     ref = zeros(13, length(T))
     p = [0.0]
     for i=1:1:length(T)
         t = T[i]
         @show(t)
-        X1 = ellipse2points(A0, b0, x0_i) #return a set of points in dim 13
+        X1 = ellipse2points2(A0, b0, x0_i) #return a set of points in dim 13
+        #@show(X1)
         X2 = scale_up_6dof(X1, S)
+        #@show(X2)
         X3 = prop_points_rk(X2, t, dt_rk, p, model, dtt)
+        #@show(X3)
         x1 = X3[:, end]
+        #x1 = Z[:, 10*Int(10*t)+1]
         X_12 = points13_12(X3, x1)
+        #@show(X_12)
         X4 = scale_down_6dof(X_12, S)
+        #@show(X4)
+        #A2, b2 = points2ellipse_mosek2(X4, points13_12_1(scale_down_13(Z[:, 10*Int(10*t)+1], S), x1))
         A2, b2 = points2ellipse_mosek(X4)
         blist[:, i] = b0
         Alist[:, :, i] = A0
@@ -341,7 +438,7 @@ function ellipse_propagation(A0, b0, tstart, tend, dtt, x0_i, model, p)
         b0 = b2
         XX[:, :, i] = X1
         ref[:, i] = x0_i
-        x0_i = scale_down_13(x1)
+        x0_i = scale_down_13(x1, S)
     end
     return Alist, blist, centerlist, XX, ref, T
 end
@@ -407,9 +504,9 @@ function scale_down_13(X, S)
     #X is a single vector
     n = length(X)
     X2 = zeros(n)
-    X2[1:3] = X[1:3]/(1e3*3389.5)
-    X2[8:10] = X[8:10]/(1e3*7.00) #initial velocity
-    X2[11:13] = X[11:13]
+    X2[1:3] = X[1:3]./S[1:3]
+    X2[8:10] = X[8:10]./S[8:10] #initial velocity
+    X2[11:13] = X[11:13]./S[10:12]
     X2[4:7] = X[4:7]
     return X2
 end
@@ -500,4 +597,38 @@ function ellipse2points3(A, b, x0)
     end
     points3[:, 10*n+1] = C
     return points3 #return 2n+1 points
+end
+
+
+function points2ellipse_mosek2(X, x_c)
+    n, m = size(X);
+    for j=1:m
+        X[:, j] -= x_c
+    end
+    s = MathOptInterface.LogDetConeTriangle(n)
+    model = Model(with_optimizer(Mosek.Optimizer, QUIET= true, MSK_DPAR_INTPNT_CO_TOL_DFEAS=10^(-20), MSK_DPAR_INTPNT_CO_TOL_PFEAS=10^(-20), MSK_DPAR_INTPNT_CO_TOL_MU_RED = 10^(-20)))
+    #model = Model(with_optimizer(Mosek.Optimizer))
+    @variable(model, A[1:n, 1:n], PSD)
+    #@variable(model, b[1:n])
+    @variable(model , t)
+    @objective(model, Max, t)
+    @constraint(model, con[i = 1:m], [1.0; A*(X[:, i])] in SecondOrderCone())
+    V = [A[i, j] for j in 1:1:n for i in 1:1:j] #vectorize form of the matrix
+    @constraint(model, [t;1.0;V] in s)
+    #ϵ = 1e-1
+    #I = Diagonal(ones(n))
+    #B = A-ϵ*I
+    #@SDconstraint(model, -B ⪰ 0)
+    #@show(B)
+    #W = [-B[i, j] for j in 1:1:n for i in 1:1:n]
+    #@constraint(model, [0.0;1.0;W] in s)
+    #@show(con)
+    #MathOptInterface.TimeLimitSec() = 0.5
+    JuMP.optimize!(model)
+    a = JuMP.termination_status(model)
+    #@show(a)
+    #@show(objective_value(model))
+    A = JuMP.value.(A)
+    #b = JuMP.value.(b)
+    return A, x_c
 end

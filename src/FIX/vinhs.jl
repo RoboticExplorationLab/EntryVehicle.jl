@@ -186,7 +186,7 @@ table_CD, table_CL = drag_lift_table(δ, r_min, r_cone, r_G)
 
 u0 = [(125+3389.5)*1e3; 0.0; 0.0; 7.032*1e3; -15.0*pi/180; 0.0]
 u1 = [(80+3389.5)*1e3; 0.0; 0.0; 7800; -0.017; 1.571]
-t_sim4, Z4 = rk4(vinhs_full_model, u0, [45*pi/180], 0.0001, [0.0; 80.0])
+t_sim4, Z4 = rk4(vinhs_full_model, u0, [45*pi/180], 0.01, [0.0; 80.0])
 
 t_sim4, Z4 = rk4(vinhs_model, u1, [0.0], 0.01, [0.0;80.0])
 
@@ -824,28 +824,60 @@ Plots.plot(U[1, :])
 u0
 Q0 = Matrix(Diagonal(U0.^2)/9)
 
-function lincov_prop(x0, Q0, Z4, T)
+function prop(x0, T, dt)
     E = zeros(6, length(T))
-    Q = zeros(6, 6, length(T))
-    for i=1:1:length(T)
+    Q = zeros(6, 6, length(T)+1)
+    E[:, 1] = x0
+    x1 = x0
+    for i=1:1:length(T)-1
         t = T[i]
         p = [45*pi/180]
-        f(u) = vinhs_full_model_lincov(t, u, p)
-        A = ForwardDiff.jacobian(f, Z4[:, i])
-        Φ = exp(A*t)
-        x = Φ*x0
-        E[:, i] = x
-        Q[:, :, i] = Φ*Q0*Φ'
+        x2 = vinhs_full_model(t, x1, p)*dt+x1
+        #f(u) = vinhs_full_model_lincov(t, u, p)
+        #A = ForwardDiff.jacobian(f, Z4[:, i])
+        #Φ = exp(A*t)
+        #x = Φ*x0
+        E[:, i+1] = x2
+        x2 = x1
+        #Q[:, :, i] = Φ*Q0*Φ'
     end
     return E, Q
 end
 
-T = 0.0:0.001:80.0
-E, Q = lincov_prop(u0, Q0, Z4, T)
+using ForwardDiff
 
-t_sim4, Z4 = rk4(vinhs_full_model, u0, [45*pi/180], 0.01, [0.0; 80.0])
-Plots.plot!(T, [sqrt(Q[4, 4, i]) for i=1:1:length(T)])
-Plots.plot!(T, -[sqrt(Q[4, 4, i]) for i=1:1:length(T)])
+function lincov_prop(x0, Q0, Z4, T, dt)
+    E = zeros(6, length(T))
+    QQ = zeros(6, 6, length(T))
+    x1 = x0
+    E[:, 1] = x0
+    QQ[:, :, 1] = Q0
+    Q1 = Q0
+    for i=1:1:length(T)-1
+        t = T[i]
+        p = [45*pi/180]
+        f(u) = vinhs_full_model_lincov(t, u, p)
+        A = ForwardDiff.jacobian(f, Z4[:, i])
+        Φ = exp(A*dt)
+        x = Φ*x1
+        Q = Φ*Q1*Φ'
+        E[:, i+1] = x
+        QQ[:, :, i+1] = Q
+        x1 = x
+        Q1 = Q
+    end
+    return E, QQ
+end
 
+
+dt = 1e-5
+t_sim4, Z4 = rk4(vinhs_full_model, u0, [45*pi/180], dt, [0.0; 80.0])
+T = 0.0:dt:80.0
+Q0 = Diagonal([(50.0^2); (0.0017)^2; (0.0017)^2; (1.0)^2; (0.0001)^2; (0.0001)^2])
+E, QQ = lincov_prop(u0, Q0, Z4, T, dt)
+V = QQ[2, 2, :].^(0.5)
+Plots.plot(T, V)
 
 Plots.plot(T, E[1, :])
+
+Plots.plot(t_sim4, Z4[1, :])

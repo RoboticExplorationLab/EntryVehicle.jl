@@ -20,8 +20,8 @@ function plot_altitude(X, t_sim)
     for i = 1:length(t_sim)
         R[i] = (sqrt(X[1, i]^2+X[2, i]^2+X[3, i]^2)-(3389.5*1e3))
     end
-    Plots.plot(t_sim, R*1e-3, legend=false)
-    xlabel!("Time [s]")
+    Plots.plot(t_sim, R*1e-3, legend=false, xtickfont = font(9), xguidefontsize=15, ytickfont = font(8), yguidefontsize=13, linewidth = 3.0)
+    xlabel!("time [s]")
     ylabel!("Altitude [km]")
 end
 
@@ -56,9 +56,9 @@ function plot_total_attack_angle(X, t_sim)
         α = acos(v_body[3]/norm(v_body))
         α_t[i] = α*180/pi
     end
-    Plots.plot(t_sim, α_t, legend = false)
+    Plots.plot(t_sim, α_t, legend = false, xtickfont = font(9), xguidefontsize=15, ytickfont = font(8), yguidefontsize=13, linewidth = 1.0)
     ylabel!("Total AoA [°]")
-    xlabel!("Time [s]")
+    xlabel!("time [s]")
 end
 
 function plot_entry_profile(X, t_sim)
@@ -76,7 +76,7 @@ function plot_entry_profile(X, t_sim)
         v_rel = (v-cross(ω_mars, r)) #velocity of spacecraft wrt atm
         V[i] = norm(v_rel)
     end
-    Plots.plot(V*1e-3, R*1e-3, legend=false)
+    Plots.plot(V*1e-3, R*1e-3, legend=false, xtickfont = font(9), xguidefontsize=15, ytickfont = font(8), yguidefontsize=13, linewidth = 3.0)
     xlabel!("Relative velocity [km.s-1]")
     ylabel!("Altitude [km]")
 end
@@ -88,15 +88,15 @@ function plot_quaternions(X, t_sim)
     Plots.plot!(t_sim, X[5, :], label= "q1")
     Plots.plot!(t_sim, X[6, :], label= "q2")
     Plots.plot!(t_sim, X[7, :], label= "q3")
-    xlabel!("Time [s]")
+    xlabel!("time [s]")
     ylabel!("Quaternions")
 end
 
 function plot_ang_vel(X, t_sim)
     Plots.plot(t_sim, X[11, :], label = "omega_x")
     Plots.plot!(t_sim, X[12, :], label = "omega_y")
-    Plots.plot!(t_sim, X[13, :], label = "omega_z")
-    xlabel!("Time [s]")
+    Plots.plot!(t_sim, X[13, :], label = "omega_z", xtickfont = font(9), xguidefontsize=15, ytickfont = font(8), yguidefontsize=13)
+    xlabel!("time [s]")
     ylabel!("Angular Velocity Components")
 end
 
@@ -114,8 +114,8 @@ function plot_vel(X, t_sim)
         for i = 1:length(t_sim)
             V[i] = sqrt(X[8, i]^2+X[9, i]^2+X[10, i]^2)*1e-3
         end
-        Plots.plot(t_sim, V, legend = false)
-        xlabel!("Time [s]")
+        Plots.plot(t_sim, V, legend = false, xtickfont = font(9), xguidefontsize=15, ytickfont = font(8), yguidefontsize=13, linewidth = 3.0)
+        xlabel!("time [s]")
         ylabel!("Velocity [km/s]")
 end
 
@@ -149,7 +149,7 @@ function plot_mach_number(X, t_sim)
     Re = 3389.5*1e3
     n = length(t_sim)
     M = [norm(X[8:10, i])/(speed_sound(norm(X[1:3, i])-Re)) for i=1:n]
-    Plots.plot(t_sim, M)
+    Plots.plot(t_sim, M, xtickfont = font(9), xguidefontsize=15, ytickfont = font(8), yguidefontsize=13, linewidth = 3.0)
     xlabel!("Time [s]")
     ylabel!("Mach number")
 end
@@ -159,7 +159,7 @@ function plot_mach_number_altitude(X, t_sim)
     n = length(t_sim)
     M = [norm(X[8:10, i])/(speed_sound(norm(X[1:3, i])-Re)) for i=1:n]
     A = [(norm(X[1:3, i])-Re)/(1e3) for i=1:n]
-    Plots.plot(A, M, legend =false)
+    Plots.plot(A, M, legend =false, xtickfont = font(9), xguidefontsize=15, ytickfont = font(8), yguidefontsize=13, linewidth = 3.0)
     xlabel!("Altitude [km]")
     ylabel!("Mach number")
 end
