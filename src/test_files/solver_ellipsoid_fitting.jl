@@ -186,7 +186,7 @@ function DRN_algo(X)
     s_0 = α_ini*ones(m)
     μ = 1.0
     u, s = u_0, s_0
-    ϵ1 = 10^(-4)
+    ϵ1 = 10^(-3)
     ϵ2 = 10^(-9)
     i = 0
     while norm(e-compute_h(u, X)-s) > ϵ1 || (u'*s/obj(u, X, μ, s)) > ϵ2

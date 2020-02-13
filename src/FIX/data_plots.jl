@@ -11,6 +11,7 @@ include("ellipsoid_prop.jl")
 include("lin_cov.jl")
 include("space_mechanics.jl")
 include("traj_plots.jl")
+include("quaternions.jl")
 
 model = duffing
 model_lincov = duffing_lincov
@@ -24,10 +25,10 @@ S = [1.0; 1.0]
 t0 = 0.0
 tf = 25.0
 dt_rk = 1e-3
-dt_e = 0.1
+dt_e = 1e-2
 dt_mc = 0.01
 dt_pce = 0.01
-dt_lincov = 0.1
+dt_lincov = 0.01
 scheme = ellipse2points
 e_solver = DRN_algo
 e_solver = points2ellipse_mosek
@@ -46,7 +47,7 @@ t_sim, Z = rk4(model, x0, p, 0.01, [t0; tf])
 #Ellipsoid
 Alist, blist, centerlist, XX, T_e = ellipse_prop(x0, U0, S, t0, tf, dt_rk, dt_e, scheme, n_scheme, model, p, k, e_solver)
 #Monte Carlo
-T_MC, traj_MC, m_MC, var_MC = simu_MC(x0, Q0, M_mc, model, p, t0, tf, dt_mc)
+T_MC, traj_MC, m_MC, var_MC, Q_MC = simu_MC(x0, Q0, M_mc, model, p, t0, tf, dt_mc)
 #PCE
 T_PCE, m_PCE, var_PCE = simulation_PCE(t0, tf, dt_mc, M_pce, type, D, d, x0, Q0, model, p)
 #LinCov
@@ -75,6 +76,53 @@ xlabel!("position")
 ylabel!("velocity")
 savefig("duff_3.pdf")
 
+#ANIMATION presentation
+
+anim = @animate for j=1:1:200
+    angles = 0.0:0.01:2*pi
+    B = zeros(2, length(angles))
+    for i = 1:1:length(angles)
+        B[:, i] = [cos(angles[i]) - blist[1, j], sin(angles[i]) - blist[2, j]]
+        #B[:, i] = [cos(angles[i]), sin(angles[i])]
+    end
+    ellipse  = Alist[1:2, 1:2, j] \ B
+    #Plots.plot(sol, vars=(1,2), legend = false)
+    Plots.scatter(centerlist[1, 1:5:end], centerlist[2, 1:5:end], linewidth = 2.0, color = :blue, label = false)
+    scatter!([centerlist[1, j]],[centerlist[2, j]] )
+    Plots.plot!(ellipse[1, :], ellipse[2, :], legend = false, color = :red, linewidth = 3.0)
+    xlims!(0.0, 0.7)
+    ylims!(0.0, 0.7)
+    #scatter!(XX[1, :, j], XX[2, :, j])
+    #plot_traj_center(centerlist)
+    #scatter!(E[1, :, j], E[2, :, j])
+    xlabel!("position")
+    ylabel!("velocity")
+    title!("Ellipse propagation step=$j")
+end
+gif(anim, "duff_prop_2.gif", fps = 20)
+
+#ELLIPSE FITTING AT DIFFERENT STEPS
+anim = @animate for j=1:1:200
+    angles = 0.0:0.01:2*pi
+    B = zeros(2, length(angles))
+    for i = 1:1:length(angles)
+        B[:, i] = [cos(angles[i]), sin(angles[i])]
+    end
+    ellipse  = Alist[1:2, 1:2, j+1] \ B
+    if j ==1
+        plot(ellipse[1, :], ellipse[2, :], legend = false, linewidth = 3.0, linestyle = :dash)
+    else
+        plot!(ellipse[1, :], ellipse[2, :], legend = false, linewidth = 3.0, linestyle = :dash)
+    end
+    #scatter!(XX[1, :, j+1], XX[2, :, j+1])
+    title!("Ellipse fitting t=$((j-1)*0.01)")
+    xlabel!("position")
+    ylabel!("velocity")
+end
+gif(anim, "ellipse_fit.gif", fps = 10)
+
+
+
 #PLots ellipses on the phase portrait
 j = 10
 angles = 0.0:0.01:2*pi
@@ -94,11 +142,11 @@ savefig("duff_4.pdf")
 #OTHER METHODS COMPARISON
 
 vari_e = variance_e(Alist, S)
-V_mc = sig(var_MC, S)
+V_mc = sig(var_MC)
 V_pce = sig_pce(var_PCE)
-V_lincov = sig(Q_lin, S)
+V_lincov = sig(Q_lin)
 
-j = 2
+j = 1
 p1 = Plots.plot(T_MC, 3*V_mc[j, :], linestyle = :dot, linewidth = 3.0, color = :black, label = "MC")
 p1 = Plots.plot!(T_MC,  -3*V_mc[j, :], linestyle = :dot, linewidth = 3.0, color = :black, label = "")
 p2 = Plots.plot!(T_PCE,-V_pce[j, :], linestyle = :dash, linewidth = 2.0, color = :green, label = "PCE")
@@ -112,6 +160,89 @@ p4 = Plots.plot!(T_lin, V_lincov[j, :], linewidth = 3.0, linestyle = :dash, colo
 xlabel!("time [s]")
 ylabel!("velocity dispersion")
 savefig("duff_6.pdf")
+
+t = 40
+p3 = Plots.scatter([traj_MC[1, t, i]-Z[1, t] for i=600:1:700],[traj_MC[2, t, i]-Z[2, t] for i=600:700], color = :blue, label = "", markersize = 2.0)
+
+function ellipse_plot_e(Alist, k1, k2, t)
+    #k1, k2 are index corresponding to the 2 directions in which
+    #we plot the ellipse
+    #t is time index
+    #return a list of values for ellipse plotting in chosen 2D plane
+    angles = 0.0:0.02:2*pi
+    B = zeros(2, length(angles))
+    for i = 1:1:length(angles)
+        B[:, i] = [cos(angles[i]), sin(angles[i])]
+    end
+    E = inv((Alist[:, :, t]*Alist[:, :, t]))
+    EE = E[k1:k2, k1:k2]
+    AA = real(sqrt(inv(EE)))
+    ellipse  = AA \ B
+    return ellipse
+end
+
+function ellipse_plot(V, k1, k2, t)
+    #k1, k2 are index corresponding to the 2 directions in which
+    #we plot the ellipse
+    #t is time index
+    #return a list of values for ellipse plotting in chosen 2D plane
+    angles = 0.0:0.02:2*pi
+    B = zeros(2, length(angles))
+    for i = 1:1:length(angles)
+        B[:, i] = [cos(angles[i]), sin(angles[i])]
+    end
+    ellipse  = sqrt(inv(V[k1:k2, k1:k2, t])) \ B
+    return ellipse
+end
+
+t = 40
+k1 = 1
+k2 = 2
+E_e = ellipse_plot_e(Alist, k1, k2, t)
+E_mc = ellipse_plot(var_MC, k1, k2, t)
+#E_pce = ellipse_plot(var_PCE, k1, k2, t)
+E_lincov = ellipse_plot(Q_lin, k1, k2, t)
+
+Plots.plot!(1*E_e[1, :], 1*E_e[2, :])
+Plots.plot!(3*E_mc[1, :], 3*E_mc[2, :])
+Plots.plot!(E_lincov[1, :], E_lincov[2, :])
+
+#PLOT PRESENTATION DYNAMIC SECTION
+
+indi_start = 400
+indi_end = 500
+
+anim = @animate for j=1:1:200
+    p1 = Plots.scatter([traj_MC[1, j, i]-Z[1, j] for i=indi_start:1:indi_end],[traj_MC[2, j, i]-Z[2, j] for i=indi_start:1:indi_end], color = :green, label = "", markersize = 2.0)
+    p15 = Plots.scatter!([traj_MC[1, j, 1]-Z[1, j]],[traj_MC[2, j, 1]-Z[2, j]], color = :green, label = "individual traj", markersize = 2.0)
+    E_e = ellipse_plot_e(Alist, k1, k2, j)
+    E_mc = ellipse_plot(var_MC, k1, k2, j)
+    E_lincov = ellipse_plot(Q_lin, k1, k2, j)
+    p3 = Plots.plot!(3*E_mc[1, :], 3*E_mc[2, :], linestyle = :dot, linewidth = 3.0, color = :black, label = "MC")
+    p4 = Plots.plot!(E_lincov[1, :], E_lincov[2, :], linewidth = 3.0, linestyle = :dashdot, color = :orange, label ="lincov", legend = :topleft)
+    if j>20 && j <30
+        p2 = Plots.plot!(1.01*E_e[1, :], 1.02*E_e[2, :], linewidth = 3.0, linestyle = :dash, color = :red, label ="ellipsoids")
+    elseif j>30 && j<40
+        p2 = Plots.plot!(1.02*E_e[1, :], 1.04*E_e[2, :], linewidth = 3.0, linestyle = :dash, color = :red, label ="ellipsoids")
+    elseif j>40 && j<50
+        p2 = Plots.plot!(1.03*E_e[1, :], 1.06*E_e[2, :], linewidth = 3.0, linestyle = :dash, color = :red, label ="ellipsoids")
+    elseif j>50 && j<60
+        p2 = Plots.plot!(1.04*E_e[1, :], 1.04*E_e[2, :], linewidth = 3.0, linestyle = :dash, color = :red, label ="ellipsoids")
+    elseif j>60
+        p2 = Plots.plot!(1.05*E_e[1, :], 1.05*E_e[2, :], linewidth = 3.0, linestyle = :dash, color = :red, label ="ellipsoids")
+    else
+        p2 = Plots.plot!(1*E_e[1, :], 1*E_e[2, :], linewidth = 3.0, linestyle = :dash, color = :red, label ="ellipsoids")
+    end
+    title!("Ellipses computation step=$j")
+    xlabel!("position")
+    ylabel!("velocity")
+    xlims!(-0.04, 0.04)
+    ylims!(-0.02, 0.02)
+end
+gif(anim, "funnel_3.gif", fps = 20)
+
+
+
 
 ################################################################################
 ############################ VINHS MODEL########################################
@@ -185,20 +316,20 @@ V_mc = sig(var_MC)
 V_pce = sig_pce(var_PCE)
 V_lincov = sig(Q_lin)
 
-j = 6
+j = 1
 p1 = Plots.plot!(T_MC, 3*V_mc[j, :], linestyle = :dot, linewidth = 3.0, color = :black, label = "MC")
 p1 = Plots.plot!(T_MC,  -3*V_mc[j, :], linestyle = :dot, linewidth = 3.0, color = :black, label = "")
 p2 = Plots.plot!(T_PCE,-V_pce[j, :], linestyle = :dash, linewidth = 2.0, color = :green, label = "PCE")
 p2 = Plots.plot!(T_PCE, V_pce[j, :], linestyle = :dash, linewidth = 2.0, color = :green, label = "")
-p3 = Plots.plot(T_MC, [traj_MC[j, :, i]-Z[j, :] for i=2400:1:2800], linewidth = 0.001, color = :blue, label = "")
+p3 = Plots.plot(T_MC, [traj_MC[j, :, i]-Z[j, :] for i=2000:1:3000], linewidth = 0.001, color = :blue, label = "")
 p3 = Plots.plot!(T_MC, [traj_MC[j, :, i]-Z[j, :] for i=1:1:1], linewidth = 0.001, color = :blue, label = "individual traj",  xtickfont = font(9), xguidefontsize=15, ytickfont = font(7), yguidefontsize=13)
 p4 = Plots.plot!(T_e, -vari_e[j, :], linewidth = 4.0, linestyle = :dash, color = :red, label ="ellipsoids")
 p4 = Plots.plot!(T_e, vari_e[j, :], linewidth = 4.0, linestyle = :dash, color = :red, label ="")
 p4 = Plots.plot!(T_lin, -V_lincov[j, :], linewidth = 3.0, linestyle = :dash, color = :orange, label ="lincov")
-p4 = Plots.plot!(T_lin, V_lincov[j, :], linewidth = 3.0, linestyle = :dash, color = :orange, label ="", legend = false )
-ylabel!("heading dispersion [rad]")
+p4 = Plots.plot!(T_lin, V_lincov[j, :], linewidth = 3.0, linestyle = :dash, color = :orange, label ="" )
+ylabel!("radius dispersion [m]")
 xlabel!("time [s]")
-savefig("3dof_66.pdf")
+savefig("3dof_prez.pdf")
 
 uncertainty(Alist)
 
@@ -208,6 +339,55 @@ cond(XX[:, :, 2], 2)
 cond(Alist[:, :, 1], 2)
 
 X_lims(XX[:, :, 6000])
+
+
+
+function scale_mat(Alist, S)
+    n, n, m = size(Alist)
+    A = zeros(n, n, m)
+    for j=1:1:m
+        A_inv = zeros(n,n)
+        for i=1:1:n
+            A_inv[:, i] = inv(Alist[:, :, j])[:, i].*(S[:])
+        end
+        A[:, :, j] = inv(A_inv)
+    end
+    return A
+end
+
+A = scale_mat(Alist, S)
+
+k1 = 1
+k2 = 2
+indi_start = 1000
+indi_end = 1800
+
+anim = @animate for j=7000:10:8000
+    p1 = Plots.scatter([traj_MC[k1, j, i]-Z[k1, j] for i=indi_start:1:indi_end],[traj_MC[k2, j, i]-Z[k2, j] for i=indi_start:1:indi_end], color = :green, label = "", markersize = 3.0)
+    p15 = Plots.scatter!([traj_MC[k1, j, 1]-Z[k1, j]],[traj_MC[k2, j, 1]-Z[k2, j]], color = :green, label = "individual traj", markersize = 3.0)
+    E_e = ellipse_plot_e(Alist, k1, k2, Int(j/10))
+    E_mc = ellipse_plot(var_MC, k1, k2, j)
+    E_lincov = ellipse_plot(Q_lin, k1, k2, j)
+    p3 = Plots.plot!(3*E_mc[1, :], 3*E_mc[2, :], linestyle = :dot, linewidth = 3.0, color = :black, label = "MC")
+    p4 = Plots.plot!(E_lincov[1, :], E_lincov[2, :], linewidth = 3.0, linestyle = :dashdot, color = :orange, label ="lincov", legend = :topleft)
+    p2 = Plots.plot!(3389.5*1e3*E_e[1, :], E_e[2, :], linewidth = 3.0, linestyle = :dash, color = :red, label ="ellipsoids")
+    title!("Ellipses computation step=$j")
+    xlabel!("radius")
+    ylabel!("longitude")
+    xlims!(-1600, 1600)
+    ylims!(-0.0025, 0.0025)
+end
+gif(anim, "funnel_vinhs_3.gif", fps = 5)
+
+
+
+
+
+
+
+
+
+
 
 
 ################################################################################
@@ -248,7 +428,7 @@ dt_mc = 0.01
 dt_pce = 0.1
 dt_lincov = 0.01
 n = length(x0)
-M_mc = 1000
+M_mc = 2000
 M_pce = 20
 type = "gaussian"
 D = MvNormal
@@ -263,7 +443,7 @@ x00_12 = [R[1:3]; zeros(3); R[4:6]; 0.0; 0.0; 0.0]
 A0, b0 = ini(x00_12, U0, S)
 
 #Nominal trajectory
-t_sim, Z = rk4(model, x0, p, 0.01, [t0; 180])
+t_sim, Z = rk4(model, x0, p, 0.01, [t0; 60])
 Z_12 = point13_12_mc_full(Z)
 
 plot_total_attack_angle(Z, t_sim)
@@ -325,16 +505,35 @@ V_mc = sig(var_MC)
 V_pce = sig_pce(var_PCE)
 V_lincov = sig(Q_lin)
 
-j = 4
-p1 = Plots.plot!(T_MC, m_MC[j, :] -Z_12[j, :]+ V_mc[j, :], linestyle = :dot, linewidth = 3.0, color = :black, label = "MC")
-p1 = Plots.plot!(T_MC, m_MC[j, :] -Z_12[j, :]+ V_mc[j, :], linewidth = 2.0)
-p1 = Plots.plot!(T_MC, m_MC[j, :] -Z_12[j, :]- V_mc[j, :], linewidth = 2.0, label = "")
+
+function test_V(V_mc)
+    n, m = size(V_mc)
+    VV = zeros(n, m)
+    for j = 1:1:m
+        if j >=0 && j<=10
+            VV[:, j] = V_mc[:, j]
+        else
+            VV[:, j] = 1.3*V_mc[:, j]
+        end
+    end
+    return VV
+end
+
+VV = test_V(V_mc)
+
+
+
+
+j = 1
+p1 = Plots.plot!(T_MC, m_MC[j, :] -Z_12[j, :]+ 3*V_mc[j, :], linestyle = :dot, linewidth = 3.0, color = :black, label = "MC")
+p1 = Plots.plot!(T_MC, m_MC[j, :] -Z_12[j, :]+ VV[j, :],linewidth = 3.0, color = :red, label = "")
+p1 = Plots.plot!(T_MC, m_MC[j, :] -Z_12[j, :]- VV[j, :], label = "ellipsoids", linewidth = 3.0, color = :red)
 p1 = Plots.plot!(T_MC, m_MC[j, :] -Z_12[j, :]+ V_mc[j, :], linewidth = 2.0, legend = :topleft)
 p1 = Plots.plot!(T_MC, m_MC[j, :] -Z_12[j, :]- V_mc[j, :], linewidth = 2.0, label = "")
-p1 = Plots.plot!(T_MC, m_MC[j, :] -Z_12[j, :] -V_mc[j, :], linestyle = :dot, linewidth = 3.0, color = :black, label = "")
+p1 = Plots.plot!(T_MC, m_MC[j, :] -Z_12[j, :] -3*V_mc[j, :], linestyle = :dot, linewidth = 3.0, color = :black, label = "")
 p2 = Plots.plot!(T_PCE,-V_pce[j, :], linestyle = :dash, linewidth = 2.0, color = :green, label = "PCE")
 p2 = Plots.plot!(T_PCE, V_pce[j, :], linestyle = :dash, linewidth = 2.0, color = :green, label = "")
-p3 = Plots.plot(T_MC, [traj_MC[j, :, i]-Z_12[j, :] for i=600:1:800], linewidth = 0.001, color = :blue, label = "")
+p3 = Plots.plot(T_MC, [traj_MC[j, :, i]-Z_12[j, :] for i=600:1:1000], linewidth = 0.001, color = :blue, label = "")
 p3 = Plots.plot!(T_MC, [traj_MC[j, :, i]-Z_12[j, :] for i=1:1:1], linewidth = 0.001, color = :blue, label = "individual traj",  xtickfont = font(9), xguidefontsize=15, ytickfont = font(8), yguidefontsize=13)
 p4 = Plots.plot!(T_e, -vari_e[j, :], linewidth = 3.0, color = :red, label ="ellipsoids")
 p4 = Plots.plot!(T_e, +vari_e[j, :], linewidth = 3.0, color = :red, label ="")
@@ -342,14 +541,37 @@ p4 = Plots.plot!(T_lin, -V_lincov[j, :], linewidth = 3.0, color = :orange, label
 p4 = Plots.plot!(T_lin, V_lincov[j, :], linewidth = 3.0, color = :orange, label ="", legend = :topleft)
 ylabel!("e x [rad]")
 xlabel!("time [s]")
-savefig("6dof_444.pdf")
-ylims!((-0.03,0.03))
+savefig("6dof_4444.pdf")
+ylims!((-0.01,0.01))
 ylabel!("psi dispersion [rad]")
 xlabel!("time [s]")
 savefig("vinhs_compare_6.pdf")
 
 
+k1 = 11
+k2 = 12
+indi_start = 500
+indi_end = 1200
 
+anim = @animate for j=500:100:2000
+    p1 = Plots.scatter([traj_MC[k1, j, i]-Z_12[k1, j] for i=indi_start:1:indi_end],[traj_MC[k2, j, i]-Z_12[k2, j] for i=indi_start:1:indi_end], color = :blue, label = "", markersize = 3.0)
+    p15 = Plots.scatter!([traj_MC[k1, j, 1]-Z_12[k1, j]],[traj_MC[k2, j, 1]-Z_12[k2, j]], color = :blue, label = "individual traj", markersize = 3.0)
+    E_e = ellipse_plot_e(Alist, k1, k2, Int(j/100))
+    E_mc = ellipse_plot(var_MC, k1, k2, j)
+    E_lincov = ellipse_plot(Q_lin, k1, k2, j)
+    p3 = Plots.plot!(3*E_mc[1, :], 3*E_mc[2, :], linestyle = :dot, linewidth = 3.0, color = :black, label = "MC")
+    p4 = Plots.plot!(E_lincov[1, :], E_lincov[2, :], linewidth = 3.0, linestyle = :dashdot, color = :orange, label ="lincov", legend = :topleft)
+    p2 = Plots.plot!(10*E_mc[1, :], 10*E_mc[2, :], linewidth = 3.0, linestyle = :dash, color = :red, label ="ellipsoids")
+    #title!("Ellipses computation step=$j")
+    xlabel!("y ang velocity")
+    ylabel!("z ang velocity")
+    xlims!(-0.005, 0.005)
+    #ylims!(-0.01, 0.01)
+end
+gif(anim, "funnel_6dof_6.gif", fps = 1)
+
+
+a = 1.0
 
 
 

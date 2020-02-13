@@ -171,7 +171,9 @@ function uncertainty_propagation(A0, b0, model, t_start, t_end, p, dt_e, dt_rk, 
         X2 = scale_up(X1, S)
         X3 = prop_points_rk(X2, t, dt_rk, p, model, dt_e)
         X4 = scale_down(X3, S)
+        @time begin
         A2, b2 = e_solver(X4)
+        end
         #@show(A2)
         blist[:, i] = b0
         Alist[:, :, i] = A0

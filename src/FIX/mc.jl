@@ -68,7 +68,7 @@ end
 function simu_MC(x0, Q0, M, model, p, t0, tf, dt_mc)
     X_samples = generate_samples(x0, Q0, M)
     traj, T_mc = prop_MC(X_samples, t0, tf, dt_mc, p, model)#counting prop
-    avg, var = mean_var_MC(traj)
+    avg, var, V = mean_var_MC(traj)
     return T_mc, traj, avg, var
 end
 
