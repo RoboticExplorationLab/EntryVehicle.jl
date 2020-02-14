@@ -17,23 +17,7 @@ function dyna_coeffoff_COM_on_axis(t, x, u)
     A_ref = pi*r_cone^2 #m2
     L_ref = r_cone #m
 
-    #Inertia in kg*m^2
-    #J = inertia(r_cone, h_cone) #J_total at global COM
-    #=J = [57.3336 0.0 21.84;
-            0.0 33.3336 0.0;
-            21.84 0.0 77.4] #check inertia matrix
-    Jinv = [0.0184324 0.0 -0.00520108;
-             0.0 0.0299998 0.0;
-             -0.00520108 0.0 0.0136537]=#
 
-    #=No mass offset - kg*m^2
-    J = [77.208 0.0 0.0;
-          0.0 77.208 0.0;
-          0.0 0.0 101.4]
-
-    Jinv = [0.012952 0.0 0.0;
-            0.0 0.012952 0.0;
-            0.0 0.0  0.00986193] =#
 
     J = [184.180 0.0 0.0;
         0.0 184.180 0.0;
@@ -53,31 +37,6 @@ function dyna_coeffoff_COM_on_axis(t, x, u)
     v_rel = (v-cross(ω_mars, r)) #velocity of spacecraft wrt atm
     v_body = qrot(qconj(q), v_rel) #velocity of spacecraft wrt atm in body frame
     α = acos(v_body[3]/norm(v_body)) #in fact total angle of attack, positif necessarily
-    #=if α != 0.0 #&& abs(v_body[3]/(norm(v_body)*sin(α))) <= 1.0
-            sin_β = -v_body[2]/(norm(v_body)*sin(α))
-            if abs(v_body[1]/(norm(v_body)*sin(α))) > 1.0
-                A = sign(v_body[1]/(norm(v_body)*sin(α)))*1.0
-                if sin_β >=0.0
-                    β = acos(A)
-                else
-                    β = 2*pi-acos(A)
-                end
-            else
-                if sin_β >=0.0
-                    β = acos(v_body[1]/(norm(v_body)*sin(α)))
-                else
-                    β = 2*pi-acos(v_body[1]/(norm(v_body)*sin(α)))
-                end
-            end
-    else
-            β = 0.0 #WRONG BUT NO WAY TO DETERMINE β in this case.
-    end
-    if t == 0.0
-    @show(β)
-end =#
-    #α = floor(Int, α*180/pi)+1 #degrees
-    #@show(v_body)
-    #@show(α-1)
 
     ϕ_w = atan(v_body[2], v_body[1])
 
@@ -401,3 +360,50 @@ else
 end
     return ẋ
 end
+
+
+
+#Inertia in kg*m^2
+#J = inertia(r_cone, h_cone) #J_total at global COM
+#=J = [57.3336 0.0 21.84;
+        0.0 33.3336 0.0;
+        21.84 0.0 77.4] #check inertia matrix
+Jinv = [0.0184324 0.0 -0.00520108;
+         0.0 0.0299998 0.0;
+         -0.00520108 0.0 0.0136537]=#
+
+#=No mass offset - kg*m^2
+J = [77.208 0.0 0.0;
+      0.0 77.208 0.0;
+      0.0 0.0 101.4]
+
+Jinv = [0.012952 0.0 0.0;
+        0.0 0.012952 0.0;
+        0.0 0.0  0.00986193] =#
+
+
+        #=if α != 0.0 #&& abs(v_body[3]/(norm(v_body)*sin(α))) <= 1.0
+                sin_β = -v_body[2]/(norm(v_body)*sin(α))
+                if abs(v_body[1]/(norm(v_body)*sin(α))) > 1.0
+                    A = sign(v_body[1]/(norm(v_body)*sin(α)))*1.0
+                    if sin_β >=0.0
+                        β = acos(A)
+                    else
+                        β = 2*pi-acos(A)
+                    end
+                else
+                    if sin_β >=0.0
+                        β = acos(v_body[1]/(norm(v_body)*sin(α)))
+                    else
+                        β = 2*pi-acos(v_body[1]/(norm(v_body)*sin(α)))
+                    end
+                end
+        else
+                β = 0.0 #WRONG BUT NO WAY TO DETERMINE β in this case.
+        end
+        if t == 0.0
+        @show(β)
+    end =#
+        #α = floor(Int, α*180/pi)+1 #degrees
+        #@show(v_body)
+        #@show(α-1)

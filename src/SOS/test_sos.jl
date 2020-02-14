@@ -36,3 +36,40 @@ optimize!(model)
 # The lower bound found is 3
 println(objective_value(model))
 ################################################################################
+
+# Example Risk Aware and Robust Nonlinear Planning MIT  ########################
+
+@polyvar x1
+p = x1^4+4*x1^3+6*x1^2+4*x1+5
+model = SOSModel(with_optimizer(Mosek.Optimizer))
+@variable(model, γ)
+@constraint(model, p >= γ)
+@constraint(model, γ>= 0.0)
+@objective(model, Min, γ)
+optimize!(model)
+println(objective_value(model))
+
+# Attempt to determine if this is SOS more rigorously ##########################
+model2 = SOSModel(with_optimizer(Mosek.Optimizer)) #feasibility pb by default.
+@constraint(model2, p>=0.0)
+@constraint(model2, p in SOSCone()) #okay does the same
+optimize!(model2)
+println(objective_value(model2)) # 0.0 ofc because feasibility problem
+println(primal_status(model2)) #this gives "FEASIBILITY POINT" or "NO SOLUTION"
+println(dual_status(model2))
+println(termination_status(model2))
+
+# Attempt with constraint on the region ########################################
+@polyvar x y
+model3 = SOSModel(with_optimizer(Mosek.Optimizer))
+q = x^3-4*x^2+2*x*y-y^2+y^3
+S = @set x>=0.0 && y>=0.0 && x+y-1.0>=0.0
+@constraint(model3, q>=0.0, domain=S) # Actually it searches if it is SOS,
+#does not check nonnegativity but in this case it is equivalent I believe
+optimize!(model3)
+println(primal_status(model3))
+println(dual_status(model3))
+
+all_constraints(model3, VariableRef, MOI.GreaterThan{Float64})
+sos_decomposition(p in SOSCone())
+constraint_ref_with_index(model2,2)
