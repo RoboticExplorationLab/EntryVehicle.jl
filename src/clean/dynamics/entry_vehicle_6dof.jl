@@ -4,22 +4,9 @@
 #Add break point when reaching the ground
 #see integration
 
-entry_params = (m=600.0,
-             J=SMatrix{3,3}([184.180 0.0 0.0;
-                 0.0 184.180 0.0;
-                 0.0 0.0 230.0]),
-             Jinv=SMatrix{3,3}([0.00542947 0.0 0.0;
-                 0.0 0.00542947 0.0;
-                 0.0 0.0 0.00434783]),
-             A_ref=5.515,L_ref=1.325,
-             μ_p=4.282837e13,
-             R_p=3389.5*1e3,
-             ω_p=SVector(0.0,0.0,7.095e-5),J2=1960.45e-6,coeff_interp=coeff_interp)
-
-
 include("quaternions.jl")
 
-function entry_vehicle_6dof_dynamics!(ẋ::AbstractVector,x::AbstractVector,u::AbstractVector,params)
+function entry_vehicle_6dof_dynamics!(ẋ::AbstractVector,x::AbstractVector,#=u::AbstractVector=#params,t::AbstractFloat)
     ## States: X ∈ R^13;
     # x
     # y
@@ -36,24 +23,29 @@ function entry_vehicle_6dof_dynamics!(ẋ::AbstractVector,x::AbstractVector,u::A
     # omega3
 
     r = view(x,1:3)
-    q = view(x,4:7)/(norm(view(x4:7)))
+    q = view(x,4:7)/(norm(view(x,4:7)))
     v = view(x,8:10)
     ω = view(x,11:13)
 
     #Parameters
-    m = params[:m] # mass
-    J = params[:J] # inertia matrix
-    Jinv = params[:Jinv] # inertia matrix inverse
-    A_ref = params[:A_ref] # reference area vehicle
-    L_ref = params[:L_ref] # reference length vehicle
-    μ = params[:μ_p] # gravitational parameter
-    R = params[:R_p] # planet radius
-    ω_p = params[:ω_p] # planet angular velocity vector
+    env = params[:Env]
+    vehicle = params[:Vehicle]
+    R_p = env.R_p
+    ρ0 = env.ρ0
+    H = env.H
+    μ_p = env.μ_p
+    A_ref = params[:A_ref]
+    L_ref = params[:L_ref]
+    m = vehicle.m
+    J = vehicle.J
+    Jinv = vehicle.Jinv
+    ω_p = env.ω_p
     coeff_interp = params[:coeff_interp]
 
+    ω_mars = @SVector [0.0,0.0,ω_p]
     #Compute aerodnyamic forces
-    v_rel = SVector(v-cross(ω_mars, r)) #velocity of spacecraft wrt atm
-    v_body = SVector(qrot(qconj(q), v_rel)) #velocity of spacecraft wrt atm in body frame
+    v_rel = v-cross(ω_mars, r) #velocity of spacecraft wrt atm
+    v_body = qrot(qconj(q), v_rel) #velocity of spacecraft wrt atm in body frame
     α = acos(v_body[3]/norm(v_body)) #in fact total angle of attack, positif necessarily
     ϕ_w = atan(v_body[2], v_body[1])
     q_v_b = @SVector [cos(ϕ_w/2), 0.0, 0.0, sin(ϕ_w/2)]
@@ -76,11 +68,11 @@ function entry_vehicle_6dof_dynamics!(ẋ::AbstractVector,x::AbstractVector,u::A
                 Cτ[2] - ω[2]*(L_ref/norm(v_body))*Cd[2],
                 Cτ[3] - ω[3]*(L_ref/norm(v_body))*Cd[3]]
 
-    h = (norm(r)-R)
-    F_aero_v = Svector(-0.5*exponential_atmosphere(h)*((norm(v_rel))^2)*CF*A_ref)
-    τ_aero_v = SVector(-0.5*exponential_atmosphere(h)*((norm(v_rel))^2)*Cτ_final*A_ref*L_ref)
-    F_aero_eci = SVector(qrot(qmult(q, q_v_b), F_aero_v))
-    τ_aero_body = SVector(qrot(q_v_b, τ_aero_v))
+    h = (norm(r)-R_p)
+    F_aero_v = -0.5*exponential_atmosphere(h,ρ0,H)*((norm(v_rel))^2)*CF*A_ref
+    τ_aero_v = -0.5*exponential_atmosphere(h,ρ0,H)*((norm(v_rel))^2)*Cτ_final*A_ref*L_ref
+    F_aero_eci = qrot(qmult(q, q_v_b), F_aero_v)
+    τ_aero_body = qrot(q_v_b, τ_aero_v)
 
     #Controller
     q_ref = Q
@@ -90,10 +82,10 @@ function entry_vehicle_6dof_dynamics!(ẋ::AbstractVector,x::AbstractVector,u::A
     τ_c = -kd*(ω)-kp*q_err[2:4]
 
     #Compute gravitation & J2 acceleration
-    F_grav_eci = SVector(-m*mu*r/((norm(r)^3)))
-    F_J2_eci = @SVector [J2*r[1]/norm(r)^7*(6*r[3]-1.5*(r[1]^2+r[2]^2)),
+    F_grav_eci = -m*μ_p*r/((norm(r)^3))
+    #=F_J2_eci = [J2*r[1]/norm(r)^7*(6*r[3]-1.5*(r[1]^2+r[2]^2)),
      J2*r[2]/norm(r)^7*(6*r[3]-1.5*(r[1]^2+r[2]^2)),
-     J2*r[3]/norm(r)^7*(3*r[3]-4.5*(r[1]^2+r[2]^2))]
+     J2*r[3]/norm(r)^7*(3*r[3]-4.5*(r[1]^2+r[2]^2))]=#
 
     #Compute total forces and moments
     F_total_eci = F_grav_eci + F_aero_eci #+ F_J2_eci
@@ -101,7 +93,7 @@ function entry_vehicle_6dof_dynamics!(ẋ::AbstractVector,x::AbstractVector,u::A
 
     #Compute state derivatives
     ẋ[1:3] = v # velocity in planet fixed frame
-    ẋ[4:7] = SVector(0.5*qmult(q, [0.; ω])) # quaternion derivatives
+    ẋ[4:7] = 0.5*qmult(q, [0.; ω]) # quaternion derivatives
     ẋ[8:10] = (F_total_eci/m) # acceleration in planet fixed frame
     ẋ[11:13] = Jinv*(τ_total_body-cross(ω, J*ω)) # euler equation for ω
     return ẋ

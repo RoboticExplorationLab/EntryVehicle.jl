@@ -70,13 +70,29 @@ struct Environment
     R_p::Float64 # Radius of the central planet - m
     μ_p::Float64 # Gravitational Parameter for central planet - m3.s-2
     M_p::Float64 # Mass central planet - kg
+    ω_p::Float64 # Angular Velocity planet - rad.s-1
     J2::Float64 # J2 parameter value
     ρ0::Float64 # Atmospheric Density parameter (exp model) - kg.m-3
     H::Float64 # Characteristic height in exp model - m
 end
 
-Earth=Environment("earth",6378.135*1e3,3.986004418*1e14,5.972e24,1082.48e-6,
+Earth=Environment("earth",6378.135*1e3,3.986004418*1e14,5.972e24,7.292e-5,1082.48e-6,
                     1.22,8.0e3);
 
-Mars=Environment("mars",3389.5*1e3,4.282837e13,6.39*1e23,1.96e-3,0.0158,
+Mars=Environment("mars",3389.5*1e3,4.282837e13,6.39*1e23,7.095e-5,1.96e-3,0.0158,
                 9.35458*1e3);
+"""
+Aero interpolation coefficients
+"""
+
+struct Aero_coeff_interp
+    C_FX::Any
+    C_FY::Any
+    C_FZ::Any
+    C_τX::Any
+    C_τY::Any
+    C_τZ::Any
+    DX::Any
+    DY::Any
+    DZ::Any
+end

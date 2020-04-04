@@ -53,7 +53,7 @@ end
 δ =70*pi/180 #apex angle sphere cone
 r_min = 0.2 #geometry
 r_cone = 1.325 #geometry
-r_G = [0.001; 0.0; -0.189] #center of mass location in body frame. origin at conic base
+r_G = [0.00; 0.0; 2.0] #center of mass location in body frame. origin at conic base
 table_CF, table_Cτ, table_damping = table_aero_spherecone(δ, r_min, r_cone, r_G)
 
 #Sequence for interpolation of aerodynamics coefficients
@@ -97,25 +97,30 @@ Q = qconj(Q) #quaternions initial
 x0 = [(3389.5+125)*1e3; 0.0; 50.0; Q[1]; Q[2]; Q[3]; Q[4]; v_eci; 0.0; 0.0; 0.0]
 
 # Integrating using RK4
-t_sim4, Z4 = rk4(dyna_coeffoff_COM_on_axis, x0, [0.0], 0.01, [0.0, 180.0])
+t_sim4, Z4 = rk4(dyna_coeffoff_COM_on_axis, x0, [0.0], 0.01, [0.0, 250.0])
 
 # Plotting Results #############################################################
 
 plot_traj(Z4) #traj in X, Y plane
 
 plot_altitude(Z4, t_sim4)
+savefig("altitude")
 
 plot_quaternions(Z4, t_sim4)
+savefig("quaternions")
 
 #attack angle seem to converge when reaching lower level of atmosphere
 plot_total_attack_angle(Z4, t_sim4)
+savefig("total attack angle")
 
 plot_entry_profile(Z4, t_sim4)
-
+savefig("entry profile")
 #oscillation and stabilization?
 plot_ang_vel(Z4, t_sim4)
+savefig("angular velocity")
 
 plot_vel(Z4, t_sim4)
+savefig("velocity")
 
 plot_mach_number(Z4, t_sim4)
 

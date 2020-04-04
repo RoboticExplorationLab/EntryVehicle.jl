@@ -195,3 +195,29 @@ savefig("aero_coeff") =#
 H = 0.0:1000.0:150000.0
 V = [speed_sound(h) for h in H]
 Plots.plot(H/(1e3), V) =#
+
+function coeff_interp_6dof(δ, r_min, r_cone, r_G)
+    table_CF, table_Cτ, table_damping = table_aero_spherecone(δ, r_min, r_cone, r_G)
+    #Sequence for interpolation of aerodynamics coefficients
+    α = 0.0:1.0:181.0
+    tableFX = table_CF[:,1]
+    tableFY = table_CF[:,2]
+    tableFZ = table_CF[:,3]
+    tableτX = table_Cτ[:,1]
+    tableτY = table_Cτ[:,2]
+    tableτZ = table_Cτ[:,3]
+    tabledx = table_damping[:, 1]
+    tabledy = table_damping[:, 2]
+    tabledz = table_damping[:, 3]
+    order = 14
+    C_FX = compute_chebyshev_coefficients_aerodynamics(α, tableFX[1:182], order)
+    C_FY = compute_chebyshev_coefficients_aerodynamics(α, tableFY[1:182], order)
+    C_FZ = compute_chebyshev_coefficients_aerodynamics(α, tableFZ[1:182], order)
+    C_τX = compute_chebyshev_coefficients_aerodynamics(α, tableτX[1:182], order)
+    C_τY = compute_chebyshev_coefficients_aerodynamics(α, tableτY[1:182], order)
+    C_τZ = compute_chebyshev_coefficients_aerodynamics(α, tableτZ[1:182], order)
+    DX = compute_chebyshev_coefficients_aerodynamics(α, tabledx[1:182], order)
+    DY = compute_chebyshev_coefficients_aerodynamics(α, tabledy[1:182], order)
+    DZ = compute_chebyshev_coefficients_aerodynamics(α, tabledz[1:182], order)
+    return C_FX,C_FY,C_FZ,C_τX,C_τY,C_τZ,DX,DY,DZ
+end

@@ -1,7 +1,7 @@
 
 function exponential_atmosphere(h)
     ρ0 = 0.0158 #kg/m3 here #*10^9 #0.026455*10^9 #sea level density (kg/km^3)
-    h0 = 9.35458*1e3 #scale height on Mars(m)
+    h0 = 9.35458*1e3 #scale height on Mars(m) #12
     ρ = ρ0*exp(-h/h0)
 end
 

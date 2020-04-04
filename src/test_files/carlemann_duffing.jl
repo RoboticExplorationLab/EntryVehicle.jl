@@ -1,5 +1,6 @@
 #Carlemann linearization on Duffing Oscillator
 using Plots
+using LinearAlgebra
 
 function S(i, p)
     S = 0
@@ -38,7 +39,7 @@ function carlemann_matrix(p, t)
                 end
                 k3 = map_index(i, j-1, p)
                 if k3 <= N && k3 >=1
-                    A[k, k3] = -j*γ*cos(t)
+                    A[k, k3] = j*γ*cos(t) #minus ? Nah, shouldn't be any minus here, cool
                 end
                 k4 = map_index(i-1, j+1, p)
                 if k4 <= N && k4 >=1
@@ -84,12 +85,68 @@ end
 
 t_ini = 0.0
 t_end = 100.0
-dt = 0.01
-p = 4 #order 3 is enough when dt small enough
-x_ini = [0.1 10.0]
+dt = 1e-3
+p = 3 #order 3 is enough when dt small enough
+x_ini = [0.1 0.1]
 N = Int64((p+1)*(p+2)/2)
 X = integration_carlemann(x_ini, t_ini, t_end, dt)
-Plots.plot(X[1, :], X[2, :], legend = false)
+Plots.plot!(X[1, :], X[2, :], legend = false)
+
+
+#Compare with rk integrated trajectory
+
+function duffing(u,p,t)
+    # p = α, β, δ, γ, ω
+    du = zeros(2)
+    α = -1.0 #p[1]
+    β = 1.0 #p[2]
+    δ = 0.2 #p[3]
+    γ = 0.1 #p[4]
+    ω = 1.0 #p[5]
+    du[1] = u[2]
+    du[2] =  γ*cos(t)-δ*u[2]-α*u[1]-β*u[1]^3
+    return du
+end
+
+function rk4(f, y_0, p, dt, t_span)
+    TT = t_span[1]:dt:t_span[end]
+    y = zeros(length(TT), length(y_0))
+    if length(y_0) == 1
+        y[1, :] = [y_0]
+    else
+        y[1, :] = y_0
+    end
+    for i=1:1:length(TT)-1
+        t = TT[i]
+        y_star = y[i, :]
+        k1 = f(y_star, p, t)
+        y1 = y_star+k1*dt/2 #intermediate evaluation value
+        k2 = f(y1, p, t+dt/2)
+        y2 = y_star+k2*dt/2
+        k3 = f(y2, p, t+dt/2)
+        y3 = y_star+k3*dt
+        k4 = f(y3, p, t+dt)
+        m = (k1+2*k2+2*k3+k4)/6 #slope average
+        y[i+1, :] = y_star + m*dt
+    end
+    return TT, y'
+end
+
+T_rk, X_rk = rk4(duffing, x_ini, p, 1e-3, [t_ini,t_end])
+Plots.plot(X_rk[1, :], X_rk[2, :])
+
+#OKAY so canonical basis is not really stable after 100 sec even with higher order
+#degree pol approx and with smaller dt. So can we do better with other basis of polynomials
+
+
+
+
+
+
+
+
+
+
 savefig("duff_int")
 
 
