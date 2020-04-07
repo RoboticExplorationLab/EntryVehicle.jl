@@ -3,7 +3,7 @@
 clc;clear;clear all; 
 
 epsi = 1e-2;
-d = 10;
+d = 6;
 sdpvar x1 x2 rho
 x = [x1;x2];
 f = [-x2; x1+((x1^2)-1)*x2]; %non-linear dynamics equation
@@ -22,7 +22,7 @@ for i=1:2
         t = (u+l)/2
         [s3,v3,Q3] = step_3(t,V,f,x,d);
         result = s3.problem
-        if result == 0 || result == 4
+        if result == 0
             l = t;
         else
             u = t;
@@ -40,20 +40,6 @@ for i=1:2
     l
     u
 end
-
-%% Plot result simple system (3)
-
-V1 = sdisplay(V);
-
-L2=strrep(strrep(V1,'*','.*'),'^','.^');V3=cell2mat((L2));
-
-[x1,x2]=meshgrid([-5:0.01:5],[-5:0.01:5]);
-surf(x1,x2,eval(V3),'FaceColor','red','FaceAlpha',0.85,'EdgeColor','none','FaceLighting','phong');hold on;grid on;
-hold on 
-contour(x1,x2,eval(V3),m) %to see the level set
-%xlim([-3.0 3.0]);
-%ylim([-3.0, 3.0]);
-camlight; lighting gouraud
 
 %% functions
 
