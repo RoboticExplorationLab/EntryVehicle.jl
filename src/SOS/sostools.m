@@ -1,4 +1,7 @@
 % This file uses SOStools for ROA problems involving SOS programming
+% VAN DER POL OSCILLATOR EXAMPLE HERE
+% This file enables to compare the results obtained from SOStools (here)
+% to the ones obtained using YALMIP 
 
 clc;clear;clear all; 
 
@@ -142,6 +145,7 @@ end
 
 %% Cheng comparison "shape factor" method using SOStools (trial 2)
 %No bissection for step 2 but simply solving instead.
+%WORKING
 
 clc;clear;clear all; 
 

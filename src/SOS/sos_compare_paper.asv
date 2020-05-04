@@ -145,7 +145,7 @@ for i=1:8
     sdisplay(V)
 end
 
-%% PLOT ESTIMATE SHAPE FACTOR METHOD
+%% PLOT ESTIMATE (level sets of Lyap functions)
 
 %Note that given the paramterization of that second approach, the level set
 %is the 1-level set of the function.

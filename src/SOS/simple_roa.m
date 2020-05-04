@@ -199,37 +199,6 @@ for i=1:5
     
 end
 
-%% Plot result simple system (with L fixed first)
-
-V1 = sdisplay(V);
-
-L2=strrep(strrep(V1,'*','.*'),'^','.^');V3=cell2mat((L2));
-
-[x1,x2]=meshgrid([-3:0.01:3],[-3:0.01:3]);
-%surf(x1,x2,eval(V3),'FaceColor','red','FaceAlpha',0.2,'EdgeColor','none','FaceLighting','phong');hold on;grid on;
-hold on 
-%figure()
-contour(x1,x2,eval(V3),[temp temp]) %to see the level set
-%xlim([-3.0 3.0]);
-%ylim([-3.0, 3.0]);
-camlight; lighting gouraud
-
-%Plot iterations after s1 for rho
-figure()
-plot(level)
-
-%% Plot 
-
-figure()
-for i=1:1:length(V_list)
-    V1 = sdisplay(V_list(i));
-    L2=strrep(strrep(V1,'*','.*'),'^','.^');V3=cell2mat((L2));
-    [x1,x2]=meshgrid([-3:0.01:3],[-3:0.01:3]);
-    contour(x1,x2,eval(V3),[level(i) level(i)]) %to see the level set
-    sdpvar x1 x2
-    hold on;
-end
-camlight; lighting gouraud
 
 %% functions
 

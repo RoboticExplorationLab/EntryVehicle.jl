@@ -184,11 +184,14 @@ r_G = [0.0; 0.0; -0.189]
 A_ref = pi*r_cone^2
 table_CD, table_CL = drag_lift_table(δ, r_min, r_cone, r_G)
 
+
+
+
 u0 = [(125+3389.5)*1e3; 0.0; 0.0; 7.032*1e3; -15.0*pi/180; 0.0]
 u1 = [(80+3389.5)*1e3; 0.0; 0.0; 7800; -0.017; 1.571]
 t_sim4, Z4 = rk4(vinhs_full_model, u0, [45*pi/180], 0.01, [0.0; 80.0])
 
-t_sim4, Z4 = rk4(vinhs_model, u1, [0.0], 0.01, [0.0;80.0])
+t_sim4, Z4 = rk4(vinhs_model, u0, [0.0], 0.01, [0.0;80.0])
 
 Plots.plot(Z4[4, :]*1e-3, (Z4[1, :].-(3389.5*1e3))*1e-3)
 Plots.plot(t_sim4, Z4[1, :])
