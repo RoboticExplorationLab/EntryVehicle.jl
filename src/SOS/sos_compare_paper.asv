@@ -91,7 +91,7 @@ camlight; lighting gouraud
 %% OPTIMIZE FURTHER USING A POLYNOMIAL SHAPE FACTOR FUNCTION h(x)
 % Fancy method
 
-%clc;clear;clear all; 
+clc;clear;clear all; 
 
 epsi = 1e-3;
 d = 6;
@@ -118,7 +118,8 @@ l2 = 1e-6*h;
 
 %Iterative pass this time
 
-for i=1:8
+
+for i=1:1  %try up to 8 or 9
     u = m+10.0; %Now binary search over rho to maximize rho
     l = m-1.0; %We know that one works (we want at least this next)
     while abs(u-l)>1e-3
@@ -145,7 +146,7 @@ for i=1:8
     sdisplay(V)
 end
 
-%% PLOT ESTIMATE (level sets of Lyap functions)
+%% PLOT ESTIMATE SHAPE FACTOR METHOD
 
 %Note that given the paramterization of that second approach, the level set
 %is the 1-level set of the function.

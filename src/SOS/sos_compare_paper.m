@@ -91,7 +91,7 @@ camlight; lighting gouraud
 %% OPTIMIZE FURTHER USING A POLYNOMIAL SHAPE FACTOR FUNCTION h(x)
 % Fancy method
 
-%clc;clear;clear all; 
+clc;clear;clear all; 
 
 epsi = 1e-3;
 d = 6;
@@ -118,7 +118,8 @@ l2 = 1e-6*h;
 
 %Iterative pass this time
 
-for i=1:8
+
+for i=1:8  %try up to 8 or 9
     u = m+10.0; %Now binary search over rho to maximize rho
     l = m-1.0; %We know that one works (we want at least this next)
     while abs(u-l)>1e-3
@@ -159,7 +160,71 @@ hold on
 contour(x1,x2,eval(V3),[1 1], 'Color', 'r') %to see the level set
 camlight; lighting gouraud
 
+%% SAME SHAPE FACTOR METHOD USING SOStools NOW
 
+clc;clear;clear all; 
+
+d = 6; %only even integers
+d1 = 2;
+d2 = 4;
+epsi = 1e-3;
+syms x1 x2 gam;
+x = [x1;x2];
+f = [-x2; x1+((x1^2)-1)*x2]; %((x1^2)-1)*x2]; %non-linear dynamics equation
+A = [0.0 -1.0; 1.0 -1.0]; %linearization at point (0.0,0.0) stable equi point
+Q1 = eye(2);
+Q2 = [1.0 0.0; 0.0 2.0];
+Q3 = [5.0 0.0; 0.0 2.0];
+S = lyap(A', Q3);
+%V0 = [x1 x2]*S*x;
+%V = V0;
+V = (0.65217*x1^2-0.43478*x1*x2+0.43478*x2^2);
+l1 = 1e-6*[x1 x2]*x;
+l2 = l1;
+h = [x1 x2]*x;
+m = 0.0;
+vec1 = monomials([x1; x2],0:1:d1/2);
+vec2 = monomials([x1; x2],0:1:d2/2);
+vec3 = monomials([x1; x2],0:1:d/2);
+for i=1:1  %change that here for iterative trial
+    u = m +10.0;
+    l = m;
+    while abs(u-l)>epsi
+        t = (u+l)/2
+        prog = sosprogram([x1;x2]);
+        [prog,s1] = sossosvar(prog,vec1);
+        [prog,s2] = sossosvar(prog,vec2);
+        dVdt = [diff(V,x1), diff(V,x2)]*f;
+        prog = sosineq(prog,-(dVdt+l2)+s2*(V-1.0)); %l2 not really necessary here
+        prog = sosineq(prog, (h-t)*s1+(1.0-V));
+        solver_opt.solver = 'sedumi';
+        solver_opt.params.tol = 1e-12;
+        prog = sossolve(prog, solver_opt);
+        s1_sol = sosgetsol(prog,s1);
+        s2_sol = sosgetsol(prog,s2);
+        if s1_sol == 0.0 || s2_sol == 0.0
+            u = t;
+        else 
+            l = t;
+            s1_t = s1_sol;
+            s2_t = s2_sol;
+        end
+    end
+    prog1 = sosprogram([x1,x2], [gam]);
+    [prog1,Vv] = sossosvar(prog1,vec3);
+    dVdt = [diff(Vv,x1), diff(Vv,x2)]*f;
+    K = -(dVdt+l2)+(s2_t*(Vv-1.0));
+    prog1 = sosineq(prog1,((h-gam)*s1_t)+(1.0-Vv));
+    prog1 = sosineq(prog1,K); 
+    prog1 = sosineq(prog1, Vv-l1);
+    prog1 = sossetobj(prog1, -gam);
+    solver_opt.solver = 'sedumi';
+    solver_opt.params.tol = 1e-9;
+    prog1 = sossolve(prog1, solver_opt);
+    V_sol = sosgetsol(prog1,Vv);
+    V = V_sol;
+    m = sosgetsol(prog1,gam)
+end
 
 %% FUNCTIONS
 
