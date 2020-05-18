@@ -1,9 +1,24 @@
+# Main file for julia wrapper of NASA MarsGRAM 2010 (written in Fortran)
+# Uses Interpolation.jl
+# Relies on MarsGRAM2010 documentation
 
+# OUTPUT : Obtain Mars Atmospheric density at any altitude value
+#  atmospheric_density_interpolated_marsgram(altitude)
+
+
+# TO BE MODIFIED ON EACH MACHINE
+# Localize and open the .so file from marsgram
 marsgram2 = Libdl.dlopen("/home/rexlab/remy/MarsGRAM2010-master/Code/marsgram2.so")
 
+# Files containint Interpolation File
 include("interpolation.jl")
 
-#can change default values here
+# Wrapper of MarsGram2010 main routine for Mars Density Profile.
+# Default values of input variables are the same as the original code in Fortran.
+# See meaning of Variables in MarsGRAM2010 documentation.
+
+# Code below only calls setup_m10_ and datastep_m10_ routines from FORTRAN code
+
 function wrapper_density(LSTFL="INPUT.txt", OUTFL="OUTPUT.txt",
         PROFILE="null", WAVEFILE="null", DATADIR ="null", GCMDIR="null",
         IERT=1,IUTC=1, MONTH=7, MDAY=20, MYEAR=20, NPOS=400, IHR=12, IMIN=30,
@@ -26,6 +41,7 @@ function wrapper_density(LSTFL="INPUT.txt", OUTFL="OUTPUT.txt",
         PROFNR=[1.0]; PROFFR=[1.0]; NPROF=[1]
 
         #call setup fotran subroutine, setup variables for the run
+        #Pass by references for Fortran code (match the variables types in fortran)
         ccall(Libdl.dlsym(marsgram2,:setup_m10_),
             Nothing, (Ref{Float64}, Ref{Float64}, Ref{Float64}, Ref{Float64}, Ref{Float64},
             Ref{Float64}, Ref{Float64}, Ref{Float64}, Ref{Float64}, Ref{Float64}, Ref{Float64},
@@ -49,18 +65,20 @@ function wrapper_density(LSTFL="INPUT.txt", OUTFL="OUTPUT.txt",
             , WAVEA0, WAVEDATE, WAVEA1, WAVEPHI1, PHI1DOT, WAVEA2, WAVEPHI2, PHI2DOT, WAVEA3, WAVEPHI3
             ,PHI3DOT, IUWAVE, WSCALE, CORLMIN, IPCLAT, REQUA, RPOLE, MAPYEAR, IDAYDATA)
 
-        #initialize values for
+        #initialize values
         NUMWAVE = 0; PERTSTEP =[0.0]; IUPDATE = 0; EOF = 0; TEMP =[1.0]; PRES =[1.0];
         DENSLO=[1.0];DENS=[1.0];DENSHI=[1.0]; DENSP=[1.0]; EWWIND=[1.0]; EWPERT=[1.0];
         NSWIND=[1.0]; NSPERT=[1.0]; VWPERT=[1.0]; HRHO=[1.0]; HPRES=[1.0]; CORLIM=[1.0];
         DENSTOT=[1.0]; ALS=[1.0]; SZA=[1.0]; OWLT=[1.0]; SUNLAT=[1.0]; SUNLON=[1.0];
         MARSAU=[1.0]; TLOCAL=[1.0];
 
-        #Initialize density array
+        # Initialize density array
         dens_results = []
         height = FHGT:DELHGT:FHGT+(NPOS-1)*DELHGT
 
-        #Modifications expected if MonteCarlo Number is more than 1
+        # Call datastep_m10_ fortran routine at each step. Returning values of
+        # atmospheric parameters at each step of the loop.
+        # Modifications expected if MonteCarlo Number is more than 1.
         for I=0:1:MAXNUM[1]
             ccall(Libdl.dlsym(marsgram2,:datastep_m10_), Nothing, (Ref{Int64}, Ref{Float64},
             Ref{Float64}, Ref{Float64}, Ref{Float64}, Ref{Float64}, Ref{Float64}, Ref{Float64}, Ref{Float64}, Ref{Float64}, Ref{Int64},
@@ -75,19 +93,31 @@ function wrapper_density(LSTFL="INPUT.txt", OUTFL="OUTPUT.txt",
             0.0, 0.0, 0.0, 0.0, 0.0, LONEW, CORLIM, DENSTOT, NUMWAVE, HGTASFC, IERT, IUTC, PERTSTEP,
             CORLMIN, IUPDATE, ALS, SZA, OWLT, SUNLAT, SUNLON, MARSAU, TLOCAL, PROFNEAR, PROFFAR, NPROF)
             append!(dens_results, DENS)
+            # Here only use the values of DENS (given by datastep_m10_ function)
+            # Can be extended to use other information from MarsGRAM
+            # e.g. PRES, DENSLOW, DENSHIGH etc...
         end
 
         return height, dens_results
 end
 
+# Test Functions
+
+# Get the density profile from wrapper_density function (from fortran MarsGRAM)
 height, density = wrapper_density()
+
+# Perform Chebyshev Polynomial Interpolation of MarsGram data
 interpol_coeff = compute_chebyshev_coefficients_atmosphere_log(height, density, 10)
 
-#altitude in km
-#density in kg.m-3
-function atmospheric_density_interpolated_marsgram(altitude)
+
+# Function below returns the interpolated Mars atmopsheric density value for any
+# value of altitude.
+
+function atmospheric_density_interpolated_marsgram(interpol_coeff, altitude)
+    #altitude in km
+    #density in kg.m-3
     alt_min = minimum(height);
     alt_max = maximum(height);
-    density = atmosphere_density_chebyshev(altitude, alt_min, alt_max)
+    density = atmosphere_density_chebyshev(interpol_coeff, altitude, alt_min, alt_max)
     return density
 end

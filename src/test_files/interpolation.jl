@@ -23,7 +23,7 @@ function compute_chebyshev_coefficients_atmosphere_log(height, density, order)
     return atmosphere_coefficients
 end
 
-function atmosphere_density_chebyshev(altitude, alt_min, alt_max)
+function atmosphere_density_chebyshev(interpol_coeff, altitude, alt_min, alt_max)
     atmosphere_coefficients = interpol_coeff
     altitude_min = alt_min
     altitude_max = alt_max
