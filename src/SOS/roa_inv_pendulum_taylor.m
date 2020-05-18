@@ -5,9 +5,10 @@
 clc;clear;clear all; 
 
 %% Test Plot Non linear Dynamics Behavior
+% Test of regular 2D inverted pendulum dynamics
 
 tspan = 0.0:0.01:50.0;
-y0 = [3*pi/4; 0.0];
+y0 = [0.0001; 0.0];
 [t_out,y_out] = ode45(@(t, y) inv_pend(t, y, 0.0), tspan, y0);
 
 figure()
@@ -23,25 +24,35 @@ b = 0.5;
 A = [0.0 1.0; g/l -b/(m*l^2)];
 B = [0.0; 1/(m*l^2)];
 
-Q = 1e-6*eye(2);
-R = 1e8;
+Q = 1e-10*eye(2);
+R = 1e10;
 
-K_lqr = lqr(A, B, Q, R);
+K_lqr = lqr(A, B, Q, R); %get control gain on 2D system
 %K_lqr = [100.0 67.0];
 
+K = K_lqr*[0.0 1.0 0.0; 0.0 0.0 1.0]; %go back to 3D polynomial form of the system
+
+%K = [0.0 1.0 2.0];
+
+%Simulate closed-loop system with 3D polynomial dynamics
 tspan = 0.0:0.01:100.0;
-y0 = [pi/2; -500.0];
-[t_out,y_out] = ode23(@(t, y) inv_pend(t, y, -K_lqr*y), tspan, y0);
+theta_0 = 0.2;
+theta_dot_0 = 0.0;
+y0 = [cos(theta_0); sin(theta_0); theta_dot_0];
+[t_out,y_out] = ode45(@(t, y) inv_pend_3d(t, y, -K*y), tspan, y0);
 
 u = zeros(size(y_out(:,1)));
 for i=1:length(y_out(:, 1))
-    u(i) = -K_lqr*y_out(i, :)';
+    u(i) = -K*y_out(i, :)';
 end
 
 figure()
 plot(t_out, y_out(:, 1))
 hold on
 plot(t_out, y_out(:, 2))
+hold on
+plot(t_out, y_out(:, 3))
+legend('cos(theta)', 'sin(theta)', 'theta_dot')
 
 figure()
 plot(t_out, u);
@@ -133,6 +144,7 @@ ops = sdpsettings('solver','mosek');
 %% Functions 
 
 function dy = inv_pend(t, y, u)
+    %regular way of putting the system 2D
     dy = [0.0; 0.0];
     %if u >= 5.0 || u <= -5.0
     %    dy(1) = 0.0;
@@ -145,4 +157,17 @@ function dy = inv_pend(t, y, u)
     dy(1) = y(2);
     dy(2) = (g/l)*sin(y(1))+u/(m*l^2)-b/(m*l^2)*y(2);
     %end
+end
+
+function dy = inv_pend_3d(t, y, u)
+    %3D polynomial form of the system
+    %[cos(theta); sin(theta); theta_dot]
+    dy = [0.0; 0.0; 0.0];
+    m = 1.0;
+    g = 1.0;
+    l = 1.0;
+    b = 0.5;
+    dy(1) = -y(2)*y(3);
+    dy(2) = y(1)*y(3);
+    dy(3) = (g/l)*y(2)+u/(m*l^2)-b/(m*l^2)*y(3);
 end

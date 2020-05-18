@@ -1,7 +1,7 @@
 % This file uses SOStools for ROA problems involving SOS programming
 % VAN DER POL OSCILLATOR EXAMPLE HERE
 % This file enables to compare the results obtained from SOStools (here)
-% to the ones obtained using YALMIP 
+% to the ones obtained using YALMIP. Similar on Van Der Pol system
 
 clc;clear;clear all; 
 

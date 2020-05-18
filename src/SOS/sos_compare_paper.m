@@ -10,7 +10,7 @@
 
 clc;clear;clear all; 
 
-M = 10000;
+M = 1000;
 x1 = unifrnd(-3.0, 3.0, 1.0, M);
 x2 = unifrnd(-3.0, 3.0, 1.0, M);
 X = [x1;x2];
@@ -51,6 +51,7 @@ S = lyap(A', Q1);
 V0 = x'*S*x;
 V = V0;
 m = 0.0;
+
 
 %% SOS ESTIMATION : 1 RUN OF THE LOOP
 
@@ -104,7 +105,7 @@ A = [0.0 -1.0; 1.0 -1.0]; %linearization at point (0.0,0.0) stable equi point
 Q1 = eye(2);
 Q2 = [1.0 0.0; 0.0 2.0];
 Q3 = [5.0 0.0; 0.0 2.0];
-S = lyap(A', Q1);
+S = lyap(A', Q1)
 %V0 = x'*S*x;
 %V = V0;
 V = (0.65217*x1^2-0.43478*x1*x2+0.43478*x2^2);
@@ -117,7 +118,6 @@ l2 = 1e-6*h;
 %% SOS ESTIMATION OF ROA (WITH SHAPE FACTOR. RAN 8 TIMES)
 
 %Iterative pass this time
-
 
 for i=1:8  %try up to 8 or 9
     u = m+10.0; %Now binary search over rho to maximize rho
@@ -159,14 +159,19 @@ hold on
 %estimations
 contour(x1,x2,eval(V3),[1 1], 'Color', 'r') %to see the level set
 camlight; lighting gouraud
+grid on 
+
+%% 
+hold on 
+grid on
 
 %% SAME SHAPE FACTOR METHOD USING SOStools NOW
 
 clc;clear;clear all; 
 
 d = 6; %only even integers
-d1 = 2;
-d2 = 4;
+d1 = 4;
+d2 = 2;
 epsi = 1e-3;
 syms x1 x2 gam;
 x = [x1;x2];
@@ -226,6 +231,148 @@ for i=1:1  %change that here for iterative trial
     m = sosgetsol(prog1,gam)
 end
 
+%% 2 FOLLOWING METHODS (RUSS NOTES) IMPLEMENT SIMPLE TWEAKS IN FINDING rho
+% and L (no modification of V in those processes though)
+%% TRY OUT METHOD WITH CONDITION ON THE HESSIAN (SINGLE SHOT METHOD RUSS NOTES)
+
+clc;clear;clear all; 
+
+d = 2;  %Degree of multiplier function to be found
+sdpvar x1 x2 rho
+x = [x1;x2];
+f = [-x2; x1+((x1^2)-1)*x2]; %non-linear dynamics equation
+A = [0.0 -1.0; 1.0 -1.0]; %linearization at point (0.0,0.0) stable equi point
+Q1 = eye(2);
+S = lyap(A', Q1);
+V0 = x'*S*x;
+V = V0;
+%V is given in this case (not modified)
+[sol,v_sol,Q_sol] = single_shot(rho,V,f,x,d);
+sol
+m = value(rho);
+
+
+%% PLOT SINGLE SHOT METHOD (HERE V is fixed TO QUADRATIC SOLUTION OF LYAPUNOV EQUATION)
+
+V1 = sdisplay(V);
+L2=strrep(strrep(V1,'*','.*'),'^','.^');V3=cell2mat((L2));
+[x1,x2]=meshgrid([-3:0.01:3],[-3:0.01:3]);
+figure() %remove figure() to plot on top of the other methods regions
+%estimations
+contour(x1,x2,eval(V3),[m m], 'Color', 'r') %to see the level set
+camlight; lighting gouraud
+
+%% SINGLE SHOT SMARTER (DOES NOT REQUIRE THE MULTIPLIER TO BE SOS, NOT NEEDED)
+clc;clear;clear all; 
+
+d = 2;  %Degree of multiplier function to be found
+sdpvar x1 x2 rho
+x = [x1;x2];
+f = [-x2; x1+((x1^2)-1)*x2]; %non-linear dynamics equation
+A = [0.0 -1.0; 1.0 -1.0]; %linearization at point (0.0,0.0) stable equi point
+Q1 = eye(2);
+S = lyap(A', Q1);
+V0 = x'*S*x;
+V = V0;
+%V is given in this case (not modified)
+[sol,v_sol,Q_sol] = single_shot_smarter(rho,V,f,x,d);
+sol
+m = value(rho);
+
+
+%% MONTE CARLO ESTIMATION ROA FOR PENDUBOT SYSTEM
+
+clc;clear;clear all; 
+
+M = 1;
+x1 = unifrnd(-1.7, 1.7, 1.0, M);
+x3 = unifrnd(-1.7, 1.7, 1.0, M);
+X = [x1;x3]
+t_span = [0.0 1.0]
+options = odeset('RelTol', 1e-3, 'AbsTol', 1e-4);
+
+Y = zeros(4, M);
+for i=1:M
+    y_0 = [X(1, i); 0.0; X(2, i); 0.0] %x2 and x4 set to 0 (slice of system)
+    [t_out,y_out] = ode45(@(t, y) cl_pendubot(t, y), t_span, y_0)
+    if abs(y_out(end, 1)) < 1e-2
+        Y(:, i) = y_0;
+    end
+    i
+end
+
+figure()
+scatter(Y(1, :), Y(3, :))
+xlabel("x1")
+ylabel("x3")
+title("region of attraction")
+xlim([-1.7, 1.7])
+ylim([-1.7, 1.7])
+
+
+%% CONTROLLED PENDUBOT EXAMPLE (CLOSED LOOP SYSTEM, POLYNOMIAL APPROXIMATION)
+
+clc;clear;clear all; 
+
+epsi = 1e-2;
+d = 2;
+d1 = 4;
+d2 = 4;
+sdpvar x1 x2 x3 x4 beta
+x = [x1;x2;x3;x4];
+f = [x2;782*x1+135*x2+689*x3+90*x4;x4;279*(x1*x3^2)-1425*x1-257*x2+273*(x3^3)-1249*x3-171*x4]; %non-linear dynamics equation
+A = jacobian(f, [x1 x2 x3 x4]);
+A_point = [0.0 1.0 0.0 0.0; 782.0 135.0 689.0 90.0; 0.0 0.0 0.0 1.0; 0.0 -257.0 -1249.0 -171.0];
+Q1 = eye(4);
+Q2 = [1.0 0.0 0.0 0.0; 0.0 2.0 0.0 0.0; 0.0 0.0 3.0 0.0; 0.0 0.0 0.0 4.0];
+S = lyap(A_point', Q1);
+V0 = x'*S*x;
+V = V0;
+%V = x'*x;
+%V = (0.65217*x1^2-0.43478*x1*x2+0.43478*x2^2);
+m = 0.0;
+h = [x1 x2 x3 x4]*[x1; x2; x3; x4]; %shape factor
+l1 = 1e-6*h;
+l2 = 1e-6*h;
+
+%% SOS ESTIMATION OF ROA PENDUBOT (shape factor method)
+
+%Iterative pass this time
+
+for i=1:1  %try up to 8 or 9
+    u = m+100000.0; %Now binary search over rho to maximize rho
+    l = m-100000.0; %We know that one works (we want at least this next)
+    while abs(u-l)>1e-3
+        t = (u+l)/2
+        [s,v,Q] = step_4(t,V,f,h,l1,l2,x,d1,d2);
+        result = s.problem
+        if result == 0
+            l = t;
+            s1 = v{1}'*Q{1}*v{1};
+            s2 = v{2}'*Q{2}*v{2};
+        else
+            u = t;
+        end
+    end
+    %s1 = clean(s1/(sum(coefficients(s1,x))), 1e-9);
+    %s2 = clean(s2/(sum(coefficients(s2,x))), 1e-9);
+    m = t;
+    u = m+100.0; %Now binary search over rho to maximize rho
+    l = m-100.0; %We know that one works (we want at least this next)
+    [ss,vv,QQ] = step_5(beta,s1,s2,f,h,l1,l2,x,d);
+    ss.problem
+    m = value(beta)
+    V = vv{1}'*QQ{1}*vv{1}+l1;
+    sdisplay(V)
+end
+
+%% Example polynomial
+
+dVdt = jacobian(V, x)*f;
+clean(dVdt, 1e-5);
+sdisplay(dVdt)
+
+
 %% FUNCTIONS
 
 % Van Der Pol Oscillator Dynamics for Monte Carlo Estimation
@@ -236,6 +383,19 @@ function dy = vdp(t, y)
     dy(2) = y(1)+((y(1)^2)-1)*y(2);
 end
 
+% Pendubot Dynamics (closed loop, polynomial approximation)
+
+function dy = cl_pendubot(t, y)
+    % y1 and y3 angular positions of 2 links
+    % actuated with torque only the first link
+    dy = zeros(4, 1);
+    dy(1) = y(2);
+    dy(2) = 782.0*y(1)+135.0*y(2)+689.0*y(3)+90.0*y(4);
+    dy(3) = y(4);
+    dy(4) = 279.0*(y(1)*(y(3)^2))-1425.0*y(1)-257.0*y(2)+(273.0*(y(3)^3))-1249.0*y(3)-171.0*y(4);
+end
+
+  
 %First 3 functions used for the first part
 
 function [sol,v_sol,Q_sol] = step_1(rho,L,f,x,d)
@@ -277,7 +437,7 @@ function [sol,v_sol,Q_sol] = step_4(beta,V,f,h,l1,l2,x,d1,d2)
     D = -(dVdt+l2)+s1*(V-1.0);
     E = (h-beta)*s2 + (1.0-V);
     F = [sos(s1),sos(s2),sos(D),sos(E)];
-    ops = sdpsettings('solver','mosek','verbose',0);
+    ops = sdpsettings('solver','mosek', 'verbose', 0.0);
     [sol,v_sol,Q_sol]=solvesos(F,[],ops,[c1;c2]);
 end
 
@@ -289,4 +449,22 @@ function [sol,v_sol,Q_sol] = step_5(beta,s1,s2,f,h,l1,l2,x,d)
     F = [sos(V-l1),sos(D),sos(E)];
     ops = sdpsettings('solver','mosek','verbose', 0.0);
     [sol,v_sol,Q_sol]=solvesos(F,-beta,ops,[beta;p]);
+end
+
+function [sol,v_sol,Q_sol] = single_shot(rho,V,f,x,d)
+    [L,c] = polynomial(x,d); %multiplier in front of V_dot
+    dVdt = jacobian(V,x)*f;
+    D = -L*dVdt+(x'*x)*(V-rho);
+    F = [sos(L),sos(D)];
+    ops = sdpsettings('solver','mosek','verbose',0);
+    [sol,v_sol,Q_sol]=solvesos(F,-rho,ops,[c;rho]);
+end
+
+function [sol,v_sol,Q_sol] = single_shot_smarter(rho,V,f,x,d)
+    [L,c] = polynomial(x,d); %multiplier in front of V_dot
+    dVdt = jacobian(V,x)*f;
+    D = -L*dVdt+(x'*x)*(V-rho);
+    F = [sos(D)];
+    ops = sdpsettings('solver','mosek','verbose',0);
+    [sol,v_sol,Q_sol]=solvesos(F,-rho,ops,[c;rho]);
 end
