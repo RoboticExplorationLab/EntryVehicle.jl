@@ -8,7 +8,7 @@ sdpvar x1 x2 rho
 x = [x1;x2];
 f = [-x2; x1+((x1^2)-1)*x2]; %non-linear dynamics equation
 A = [0.0 -1.0; 1.0 -1.0]; %linearization at point (0.0,0.0) stable equi point
-S = lyap(A', eye(2));
+S = lyap(A', eye(2))
 V0 = x'*S*x;
 V = V0;
 imp = 10.0; %improvement from one outer iteration to the other

@@ -17,15 +17,15 @@ plot(t_out, y_out(:, 1))
 %% Linearized Dynamics about theta = 0.0 (upright pendulum) unstable 
 % point.
 
-g=1.0;
+g=9.8;
 l=1.0;
 m=1.0;
 b = 0.5;
 A = [0.0 1.0; g/l -b/(m*l^2)];
 B = [0.0; 1/(m*l^2)];
 
-Q = 1e-10*eye(2);
-R = 1e10;
+Q = 1.0*eye(2);
+R = 1000.0;
 
 K_lqr = lqr(A, B, Q, R); %get control gain on 2D system
 %K_lqr = [100.0 67.0];
@@ -151,7 +151,7 @@ function dy = inv_pend(t, y, u)
     %    dy(2) = 0.0;
     %else
     m = 1.0;
-    g = 1.0;
+    g = 9.8;
     l = 1.0;
     b = 0.5;
     dy(1) = y(2);

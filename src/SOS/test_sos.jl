@@ -103,6 +103,7 @@ gram_matrix(p)
 
 
 Q = gram_matrix(cref)
+Q.basis.monomials
 Q.Q[:, :]
 
 Q.x'*Q.Q*Q.x
@@ -145,3 +146,109 @@ surface(y1,y2,(y1,y2)->lyap(y1,y2),
             ylabel="X2",
             xlabel="X1",
             title="Quartic lyapunov function", colorbar=:none)
+
+
+# Dummy Example for slides presentation ########################################
+# ##############################################################################
+
+P = x1^2-4x1*x2+7*x2^2
+model = SOSModel(with_optimizer(CSDP.Optimizer))
+cref = @constraint(model, P in SOSCone())
+optimize!(model)
+
+G = gram_matrix(cref)
+
+G.Q
+
+G.basis.monomials
+A = cholesky(Matrix(G.Q)).L
+
+# Example on Moment Problem ####################################################
+# ##############################################################################
+
+# Recall Polynomial Optimization Example Earlier (Notebook)
+using DynamicPolynomials
+@polyvar x1 x2
+P = x1^2-x1*x2^2+x2^4+1.0
+
+using SumOfSquares
+using Mosek, MosekTools
+model = SOSModel(Mosek.Optimizer)
+cref = @constraint(model, P in SOSCone()) #Add SOS constraint on P
+optimize!(model)
+
+println("Primal Status: ",  primal_status(model))
+println("Termination Status: ", termination_status(model))
+
+decomp = sos_decomposition(cref)
+decomp.ps # Array of polynomials forming sos decomposition of P
+
+# Solve the Polynomial Optimization using Moments
+
+# Assume x = [x1, x2] is a random variable now and that it has some disctribution
+# We now try to solve the moment-based SDP problem
+
+# Polynomial Optimization Problem now
+
+model = SOSModel(Mosek.Optimizer)
+@variable(model, γ)
+@objective(model, Max, γ)
+cref = @constraint(model, P-γ in SOSCone())
+optimize!(model)
+termination_status(model)
+primal_status(model)
+value(γ)
+
+using Convex
+using Mosek
+
+d = 2  # half the degree of the polynomial we are looking for
+
+P.x
+P.a
+
+# Needed for P coefficients up to degree 2d
+B = monomials([x1;x2], 0:2d)
+M = B*B'  # moment matrix defined here
+coeff = coefficients(P, B)  # from higher degree to lower degree
+
+# Neede for Moment Matrix for up to degree d = 2
+
+# Solve Unconstrained Moment SDP Problem with Convex.jl and Mosek
+y = Variable(length(coeff)) #+1 for the moment of order 0 meaning the integral of identity  (WARNIN this is gonna be reversed too)
+problem = minimize(coeff'y)
+problem.constraints += [y[end] == 1.0]  # condition for y to be a sequence of moments that can represrnt a measure
+M =[y[15] y[13] y[14] y[10] y[11] y[12];
+     y[13] y[10] y[11] y[6] y[7] y[8];
+     y[14] y[11] y[12] y[7] y[8] y[9];
+     y[10] y[6] y[7] y[1] y[2] y[3];
+     y[11] y[7] y[8] y[2] y[3] y[4];
+     y[12] y[8] y[9] y[3] y[4] y[5]]
+problem.constraints += [M in :SDP]
+Convex.solve!(problem, Mosek.Optimizer)
+# Access Value now
+y = y.value
+M =[y[15] y[13] y[14] y[10] y[11] y[12];
+     y[13] y[10] y[11] y[6] y[7] y[8];
+     y[14] y[11] y[12] y[7] y[8] y[9];
+     y[10] y[6] y[7] y[1] y[2] y[3];
+     y[11] y[7] y[8] y[2] y[3] y[4];
+     y[12] y[8] y[9] y[3] y[4] y[5]]
+
+problem.optval
+rank(M)
+
+# Get one atomic dirac measure here in the soltuion. Meaning that we knoe
+v = moment_matrix(cref)
+extractatoms(v, 1e-3)
+
+# Weird stuff so far
+
+
+using MultivariateMoments
+
+v = moment_matrix(cref)
+a = extractatoms(v, 1e-3)
+
+A = [1.0, 2.0, 3.0]
+reverse(A)
