@@ -99,7 +99,7 @@ function rk4(f, y_0, p, dt, t_span)
     for i=1:1:length(T)-1
         t = T[i]
         y_star = y[i, :]
-        k1 = f(y_star, p)
+        k1 = f(t, y_star, p)   # Check that line for time
         y1 = y_star+k1*dt/2 #intermediate evaluation value
         k2 = f(t+dt/2, y1, p)
         y2 = y_star+k2*dt/2
@@ -111,38 +111,6 @@ function rk4(f, y_0, p, dt, t_span)
     end
     return T, y'
 end
-
-# Test Traj NASA ###############################################################
-
-using CSV
-using DataFrames
-
-file = "mars_edl_low_ld_v2.txt"
-F = CSV.File(file)
-df = DataFrame(F)
-names(df)
-
-Plots.plot(df.time, (sqrt.(df.xi.^2+df.yi.^2+df.zi.^2)))
-
-Plots.plot(df.time, (sqrt.(df.vxi.^2+df.vyi.^2+df.vzi.^2)))
-
-Plots.plot(df.time, df.vxi)
-Plots.plot(df.time, df.vyi)
-Plots.plot(df.time, df.vzi)
-Plots.plot(df.time, df.mass) #constant
-Plots.plot(df.time, df.piti)
-Plots.plot(df.time, df.yawi)
-Plots.plot(df.time, df.roli)
-
-Plots.plot(df.time, df.sref) #constant
-
-Plots.plot(df.time, df.pitr)
-Plots.plot(df.time, df.rolr)
-Plots.plot(df.time, df.yawr)
-
-Plots.plot(df.time, df.alpha) #almost always constant here
-
-Plots.plot(df.time, df.jdate) #constant makes sense
 
 # 6 DOF simulation #############################################################
 

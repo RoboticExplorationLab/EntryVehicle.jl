@@ -3,18 +3,44 @@ Aerodynamics.jl contains code to compute the aerodynamics coefficients for
 a given Vehicle
 Currently using a Newton's Panel Method for computing the coefficients in the
 hypersonic regime.
-See the paper Analytic Hypersonic Aerodynamics for Conceptual Design of Entry Vehicles
+See the paper:
+Analytic Hypersonic Aerodynamics for Conceptual Design of Entry Vehicles
 by Grant and Braun.
+
+
+The Frame of Reference considered for aerodynamic computation is defined as follows:
+Z : Along the nose of the entry capsule (axis of symmetry revolution)
+X, Y : Parameterizing the base plan of the vehicle (perpendicular to Z)
+
 """
 
 #=
+# TO DO: Evaluate the use of the following structure potentially
+
+abstract type Aerodynamics{T} end
+
+struct ThreeDOFAero{T} <: Aerodynamics
+    C_D::Array{T, 2}
+    C_L::Array{T, 2}
+end
+
+struct SixDOFAero{T} <: Aerodynamics
+    forces
+    moments
+    damping
+end
+
+=#
+
+
+
 function exponential_atmosphere(h,ρ0,H)
     #ρ0 = 0.0158 #kg/m3 here #*10^9 #0.026455*10^9 #sea level density (kg/km^3)
     #h0 = 9.35458*1e3 #scale height on Mars(m)
     #ρ0 = 1.22 #kg/m3
     #h0 = 8000.0
     ρ = ρ0*exp(-h/H)
-end =#
+end
 
 function speed_sound(h)
     #returns speed of sound with respect to altitude (fit model for h in m)
@@ -29,7 +55,6 @@ function speed_sound(h)
     return v_s
 end
 
-a=1
 
 #test for offline coefficients computation
 
@@ -37,6 +62,7 @@ function compute_aero2(vehicle::Vehicle{T}, α::T)  where {T}
     #general case: v is the relative velocity of spacecraft wrt atm
     #Compute the Coefficients for a Vehicle "vechile" with spherecone type of
     #geometry for a speicfic value of angle of attack α
+    #damping should be true if want to be included, false otherwise
 
     δ = vehicle.geometry.δ
     r_min = vehicle.geometry.r_min
@@ -181,8 +207,8 @@ function drag_lift_coeff(vehicle::Vehicle{T}, α::T) where {T}
     L_ref_c = r_cone
     A_ref = pi*r_cone^2
     L_ref = r_cone
-    CF_cone, Cτ_cone = compute_aero2(δ, r_min, r_cone, r_G, α)
-    CF_sphere, Cτ_sphere = compute_aero_sphere(δ, r_min, r_cone, r_G, α)
+    CF_cone, Cτ_cone = compute_aero2(vehicle, α)
+    CF_sphere, Cτ_sphere = compute_aero_sphere(vehicle, α)
     CF = (CF_cone*A_ref_c+CF_sphere*A_ref_s)/A_ref #this is CN, -CY, CA (in this order)
     Cτ = (Cτ_cone*A_ref_c*L_ref_c+Cτ_sphere*A_ref_s*L_ref_s)/(A_ref*L_ref)
     CN = CF[1]
@@ -206,7 +232,7 @@ function drag_lift_table(vehicle::Vehicle{T}) where {T}
     table_CD = zeros(n)
     table_CL = zeros(n)
     for i=1:length(α)
-        CD, CL = drag_lift_coeff(δ, r_min, r_cone, r_G, α[i]*pi/180)
+        CD, CL = drag_lift_coeff(vehicle, α[i]*pi/180)
         table_CD[i] = CD
         table_CL[i] = CL
     end
@@ -248,32 +274,109 @@ function coeff_interp_6dof(vehicle::Vehicle{T}) where {T}
 end
 
 
-#= UNIT TESTING using reference paper
-δ = 70*pi/180
-r_min = 0.09144*cos(δ)
-r_cone = 0.762/2
-r_G = [0.0; 0.0; -0.1]
+# UNIT TESTING using reference paper
 
-t1, t2 = table_aero(δ, r_min, r_cone, r_G)
-table_CF, table_Cτ = table_aero_spherecone(δ, r_min, r_cone, r_G)
+# Defining Vehicle used in the reference paper for coefficients comparison
 
-td, tl = drag_lift_table(δ, r_min, r_cone, r_G)
-Plots.plot(tl)
+function define_test_vehicle()
+    δ = 70*pi/180                       # Semi-angle at apex of the capsule
+    r_cone = 0.762/2                    # Radius of base of the vehicle
+    r_min = 0.09144*cos(δ)              # Smallest Radius for vehicle (top)
+    r_G = [0.0; 0.0; -0.1]              # Position Center of Gravity in Vehicle Frame
+    AeroTestGeometry = SphereConeGeometry{Float64}(δ, r_cone, r_min)
+    m = 1.0                             # irrelevant for aero computation here
+    J = Matrix(Diagonal(ones(3)))          # irrelevant for aero computation here
+    J_inv = J                           # irrelevant for aero computation here
+    AeroTestVehicle = Vehicle{Float64}(AeroTestGeometry, m, J, J_inv, r_G)
+    return AeroTestVehicle
+end
 
-#Sphere cone in the case of an axisymmetric body makes sense (same curve as the hypersonic paper)
-#Difference certainly due to the references chosen and their Beta angle that I did not consider (because symmetric totally)
-t1, t2 = table_aero_spherecone(δ, r_min, r_cone, r_G)
-α = 0.0:1.0:60.0
-Plots.scatter(α, t2[1:61, 2])
+# Aerodynamics coefficients
 
-p1 = Plots.plot(α, t1[1:61, 1])
-Plots.xlabel!("α")
-p2 = Plots.plot(α, t1[1:61, 3])
-p3 = Plots.plot(α, t2[1:61, 2])
-Plots.plot(p1, p2, p3, layout = (1, 3), legend = false)
-savefig("aero_coeff") =#
+# Plot forces coefficients
+function aero_coeff_plot_forces!(vehicle::Vehicle{Float64}, α_max::Float64)
+    # Function computing spherecone coefficients for geometry in reference paper
+    # For Paper comparison damping should be
+    t_coeff_force, t_coeff_moment, t_damping = table_aero_spherecone(vehicle)
+    #@show(typeof(t_coeff_force))
+    α = 0.0:1.0:α_max
+    ind_lim = Int(round(α_max))+1
+    plt = plot(layout = (1, 3))
+    Plots.plot!(α, [t_coeff_force[1:ind_lim, 1],
+                        t_coeff_force[1:ind_lim, 2],
+                        t_coeff_force[1:ind_lim, 3]],
+                layout = (1, 3),
+                legend = false,
+                xlabel = ["angle of attack" "angle of attack" "angle of attack"],
+                ylabel = ["values" "" ""],
+                title = ["CX" "CY" "CZ"])
+    display(plt)
+    return nothing
+end
 
-#=speed of sound tests
-H = 0.0:1000.0:150000.0
-V = [speed_sound(h) for h in H]
-Plots.plot(H/(1e3), V) =#
+
+# Plot moments coefficients
+function aero_coeff_plot_moments!(vehicle::Vehicle{Float64}, α_max::Float64)
+    # Function computing spherecone coefficients for geometry in reference paper
+    # For Paper comparison damping should be
+    t_coeff_force, t_coeff_moment, t_damping = table_aero_spherecone(vehicle)
+    α = 0.0:1.0:α_max
+    ind_lim = Int(round(α_max))+1
+    plt = plot(layout = (1, 3))
+    Plots.plot!(α, [t_coeff_moment[1:ind_lim, 1],
+                        t_coeff_moment[1:ind_lim, 2],
+                        t_coeff_moment[1:ind_lim, 3]],
+                layout = (1, 3),
+                legend = false,
+                xlabel = ["angle of attack" "angle of attack" "angle of attack"],
+                ylabel = ["values" "" ""],
+                title = ["CL" "CM" "CN"])
+    display(plt)
+    return nothing
+end
+
+# Plot damping coefficients
+function aero_coeff_plot_damping!(vehicle::Vehicle{Float64}, α_max::Float64)
+    # Function computing spherecone coefficients for geometry in reference paper
+    # For Paper comparison damping should be
+    t_coeff_force, t_coeff_moment, t_damping = table_aero_spherecone(vehicle)
+    α = 0.0:1.0:α_max
+    ind_lim = Int(round(α_max))+1
+    plt = plot(layout = (1, 3))
+    Plots.plot!(α, [t_damping[1:ind_lim, 1],
+                        t_damping[1:ind_lim, 2],
+                        t_damping[1:ind_lim, 3]],
+                layout = (1, 3),
+                legend = false,
+                xlabel = ["angle of attack" "angle of attack" "angle of attack"],
+                ylabel = ["values" "" ""],
+                title = ["CdampL" "CdampM" "CdampN"])
+    display(plt)
+    return nothing
+end
+
+# Speed of Sound with respect to altitude
+function plot_speed_of_sound(increment, alt_max)
+    # input in meters
+    plt = plot()
+    H = 0.0:increment:alt_max
+    V = [speed_sound(h) for h in H]
+    Plots.plot!(H/1e3, V,
+                xlabel = "Altitude (km)",
+                ylabel = "Speed of sound (m.s-1)",
+                title = "Mars speed of sound profile")
+    display(plt)
+    return nothing
+end
+
+
+#=
+# Actual Test
+using LinearAlgebra
+using Plots
+include("Vehicles.jl")
+TestVehicle = define_test_vehicle()
+aero_coeff_plot_forces!(TestVehicle, 60.0)
+aero_coeff_plot_moments!(TestVehicle, 60.0)
+aero_coeff_plot_damping!(TestVehicle, 60.0)
+=#

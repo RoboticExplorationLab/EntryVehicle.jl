@@ -16,16 +16,16 @@ struct SphereConeGeometry{T} <: Geometry{T}
     r_min::T # radius sphere part in meters (M=m)
 end
 
-function r_sphere(geometry::SphereConeGeometry{T}) where {T}
+function get_r_sphere(geometry::SphereConeGeometry{T}) where {T}
     return geometry.r_min/(cos(geometry.δ))
 end
 
-function A_ref(geometry::SphereConeGeometry{T}) where {T}
+function get_A_ref(geometry::SphereConeGeometry{T}) where {T}
     # Return Reference Area of Sphere Cone
     return π*geometry.r_cone^2
 end
 
-function L_ref(geometry::SphereConeGeometry{T}) where {T}
+function get_L_ref(geometry::SphereConeGeometry{T}) where {T}
     # Return Reference Length of Sphere Cone
     return geometry.r_cone
 end

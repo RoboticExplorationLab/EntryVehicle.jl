@@ -30,6 +30,7 @@ function MarsGravity()
     SphericalGravityField{Float64}(42828.37*(3600.0^2))
 end
 
+
 function EarthGravityJ2()
     J2GravityField{FLoat64}(398600.4415*(3600.0^2), 6378.1363, 0.1082635854e-2)
 end
@@ -75,16 +76,16 @@ end
 
 
 function EarthEnvironment()
-    EarthGravity = EarthGravity()
+    Earth_Gravity = EarthGravity()
     EarthAtmosphere = EarthExponentialAtmosphere()
-    env = Environment{Float64}(6378.135*1e3,3.986004418*1e14,5.972e24,7.292e-5,EarthGravity, EarthAtmosphere)
+    env = Environment{Float64}(6378.135*1e3,3.986004418*1e14,5.972e24,7.292e-5,Earth_Gravity, EarthAtmosphere)
     return env
 end
 
 function MarsEnvironment()
-    MarsGravity = MarsGravity()
+    Mars_Gravity = MarsGravity()
     MarsAtmosphere = MarsExponentialAtmosphere()
-    env = Environment{Float64}(3389.5*1e3,4.282837e13,6.39*1e23,7.095e-5,MarsGravity, MarsAtmosphere)
+    env = Environment{Float64}(3389.5*1e3,4.282837e13,6.39*1e23,7.095e-5,Mars_Gravity, MarsAtmosphere)
     return env
 end
 
